@@ -1,5 +1,5 @@
 import { data } from "react-router";
-import { prisma } from "../db.server";
+import prisma from "../db.server";
 
 export const action = async ({ request }) => {
   if (request.method !== "POST") {
@@ -21,7 +21,7 @@ export const action = async ({ request }) => {
 
   if (!video) {
     // Cloudflare pode mandar eventos duplicados ou fora de ordem
-    return json({ ok: true });
+    return data({ ok: true });
   }
 
   // processamento concluído
@@ -56,5 +56,5 @@ export const action = async ({ request }) => {
     });
   }
 
-  return json({ ok: true });
+  return data({ ok: true });
 };

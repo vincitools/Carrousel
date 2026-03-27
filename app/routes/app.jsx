@@ -1,23 +1,13 @@
-import { Outlet, useLoaderData, useRouteError } from "react-router";
+import { Outlet, useLoaderData, useRouteError, useLocation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-react-router/react";
-import {
-  AppProvider,
-  Frame, // ← Adicione Frame aqui
-  Page,
-  Layout,
-  Navigation,
-} from "@shopify/polaris";
-import {
-  ImageIcon,
-  CollectionIcon,
-} from "@shopify/polaris-icons";
+import { AppProvider } from "@shopify/polaris";
 
 export const loader = async ({ request }) => {
-  const DEV_MODE = true; // 👈 mudar depois!
+  const skipAdminAuth = process.env.SKIP_ADMIN_AUTH === "true";
 
-  if (!DEV_MODE) {
+  if (!skipAdminAuth) {
     await authenticate.admin(request);
   }
 
@@ -26,38 +16,22 @@ export const loader = async ({ request }) => {
 
 export default function AppLayout() {
   const { apiKey } = useLoaderData();
+  const location = useLocation();
+  const search = location.search || "";
 
   return (
     <ShopifyAppProvider isEmbeddedApp apiKey={apiKey}>
       <AppProvider i18n={{}}>
-        <Frame> {/* ← Adicione Frame aqui */}
-          <Page fullWidth>
-            <Layout>
-              <Layout.Section secondary>
-                <Navigation location="/">
-                  <Navigation.Section
-                    items={[
-                      {
-                        label: "Media Gallery",
-                        icon: ImageIcon,
-                        url: "/app/library",
-                      },
-                      {
-                        label: "Playlists",
-                        icon: CollectionIcon,
-                        url: "/app/playlists",
-                      },
-                    ]}
-                  />
-                </Navigation>
-              </Layout.Section>
-
-              <Layout.Section>
-                <Outlet />
-              </Layout.Section>
-            </Layout>
-          </Page>
-        </Frame> {/* ← Feche Frame aqui */}
+        <ui-nav-menu>
+          <a href={`/app${search}`} rel="home">
+            Dashboard
+          </a>
+          <a href={`/app/library${search}`}>Content Library</a>
+          <a href={`/app/playlists${search}`}>Playlists</a>
+          <a href={`/app/widgets${search}`}>Widgets</a>
+          <a href={`/app/settings${search}`}>Settings</a>
+        </ui-nav-menu>
+        <Outlet />
       </AppProvider>
     </ShopifyAppProvider>
   );

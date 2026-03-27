@@ -1,0 +1,102 @@
+[2026-03-17T11:21:11.624Z] [upload-loader-1773746471624-h2823x] /api/videos/upload loader hit method=GET
+[2026-03-17T11:21:11.630Z] [upload-loader-1773746471624-h2823x] signed params generated videoId=shopify-cmmt3jdab0000ep5k0gy3ufdq-1773746471628
+[2026-03-17T11:29:17.332Z] [upload-loader-1773746957332-bb8ylm] /api/videos/upload loader hit method=GET
+[2026-03-17T11:29:17.336Z] [upload-loader-1773746957332-bb8ylm] signed params generated videoId=shopify-cmmt3jdab0000ep5k0gy3ufdq-1773746957335
+[2026-03-17T11:34:22.513Z] [upload-loader-1773747262513-prfyqo] /api/videos/upload loader hit method=GET
+[2026-03-17T11:34:22.516Z] [upload-loader-1773747262513-prfyqo] signed params generated videoId=shopify-cmmt3jdab0000ep5k0gy3ufdq-1773747262516
+[2026-03-17T12:13:24.282Z] [upload-loader-1773749604282-lwwyfe] /api/videos/upload loader hit method=GET
+[2026-03-17T12:13:24.303Z] [upload-loader-1773749604282-lwwyfe] signed params generated videoId=shopify-cmmt3jdab0000ep5k0gy3ufdq-1773749604295
+[2026-03-17T12:28:50.452Z] [upload-loader-1773750530452-2x3hq7] /api/videos/upload loader hit method=GET
+[2026-03-17T12:28:50.473Z] [upload-loader-1773750530452-2x3hq7] signed params generated videoId=shopify-cmmt3jdab0000ep5k0gy3ufdq-1773750530472
+[2026-03-18T12:54:17.694Z] [upload-loader-1773838457694-mgx4gf] /api/videos/upload loader hit method=GET
+[2026-03-18T12:54:17.700Z] [upload-loader-1773838457694-mgx4gf] signed params generated videoId=shopify-cmmt3jdab0000ep5k0gy3ufdq-1773838457698
+[2026-03-18T14:07:52.352Z] [upload-loader-1773842872352-3sgf8t] /api/videos/upload loader hit method=GET
+[2026-03-18T14:07:52.361Z] [upload-loader-1773842872352-3sgf8t] signed params generated videoId=shopify-cmmt3jdab0000ep5k0gy3ufdq-1773842872360
+[2026-03-18T14:11:45.786Z] [upload-loader-1773843105786-8at93n] /api/videos/upload loader hit method=GET
+[2026-03-18T14:11:45.789Z] [upload-loader-1773843105786-8at93n] CLOUDINARY_CLOUD_NAME está inválido. 'ml_default' é preset comum, não o cloud name da conta.
+[2026-03-18T14:14:06.722Z] [upload-loader-1773843246722-g2uwzr] /api/videos/upload loader hit method=GET
+[2026-03-18T14:14:06.731Z] [upload-loader-1773843246722-g2uwzr] signed params generated videoId=shopify-cmmt3jdab0000ep5k0gy3ufdq-1773843246730
+[2026-03-18T14:15:18.179Z] [upload-loader-1773843318179-35cz84] /api/videos/upload loader hit method=GET
+[2026-03-18T14:15:18.182Z] [upload-loader-1773843318179-35cz84] signed params generated videoId=shopify-cmmt3jdab0000ep5k0gy3ufdq-1773843318182
+[2026-03-18T14:15:21.376Z] [finalize-1773843321375-vep3dv] /api/videos/finalize hit
+[2026-03-18T14:15:21.376Z] [finalize-1773843321375-vep3dv] content-type=application/x-www-form-urlencoded;charset=UTF-8
+[2026-03-18T14:15:21.379Z] [finalize-1773843321375-vep3dv] shopId=cmmt3jdab0000ep5k0gy3ufdq
+[2026-03-18T14:15:21.382Z] [finalize-1773843321375-vep3dv] cloudinary secure_url=https://res.cloudinary.com/dowsxpbqm/video/upload/v1773843323/shopify-videos/shopify-cmmt3jdab0000ep5k0gy3ufdq-1773843318182.mp4
+[2026-03-18T14:15:21.401Z] [finalize-1773843321375-vep3dv] prisma.video created id=cmmw4iii40001ep18ldxvupr2
+[2026-03-18T14:15:21.402Z] [finalize-1773843321375-vep3dv] done in 27ms
+[2026-03-20T01:40:53.445Z] [upload-loader-1773970853445-knsz1y] /api/videos/upload loader hit method=GET
+[2026-03-20T01:40:53.454Z] [upload-loader-1773970853445-knsz1y] signed params generated videoId=shopify-cmmt3jdab0000ep5k0gy3ufdq-1773970853452
+[2026-03-20T01:45:50.673Z] [upload-loader-1773971150673-f5q6jm] /api/videos/upload loader hit method=GET
+[2026-03-20T01:45:50.676Z] [upload-loader-1773971150673-f5q6jm] signed params generated videoId=shopify-cmmt3jdab0000ep5k0gy3ufdq-1773971150676
+[2026-03-20T01:48:02.061Z] [upload-loader-1773971282060-gwtocq] /api/videos/upload loader hit method=GET
+[2026-03-20T01:48:02.065Z] [upload-loader-1773971282060-gwtocq] signed params generated videoId=shopify-cmmt3jdab0000ep5k0gy3ufdq-1773971282064 mediaType=video
+[2026-03-20T01:48:05.079Z] [finalize-1773971285079-vsya6k] /api/videos/finalize hit
+[2026-03-20T01:48:05.080Z] [finalize-1773971285079-vsya6k] content-type=application/x-www-form-urlencoded;charset=UTF-8
+[2026-03-20T01:48:05.082Z] [finalize-1773971285079-vsya6k] shopId=cmmt3jdab0000ep5k0gy3ufdq
+[2026-03-20T01:48:05.084Z] [finalize-1773971285079-vsya6k] cloudinary secure_url=https://res.cloudinary.com/dowsxpbqm/video/upload/v1773971283/shopify-videos/shopify-cmmt3jdab0000ep5k0gy3ufdq-1773971282064.mp4
+[2026-03-20T01:48:05.084Z] [finalize-1773971285079-vsya6k] detected type=VIDEO resource_type=video format=mp4
+[2026-03-20T01:48:05.103Z] [finalize-1773971285079-vsya6k] prisma.video created id=cmmy8p7xe0001eph02bd54dbd
+[2026-03-20T01:48:05.103Z] [finalize-1773971285079-vsya6k] done in 24ms
+[2026-03-20T02:20:06.125Z] [upload-loader-1773973206125-axggw6] /api/videos/upload loader hit method=GET
+[2026-03-20T02:20:06.131Z] [upload-loader-1773973206125-axggw6] signed params generated videoId=shopify-cmmt3jdab0000ep5k0gy3ufdq-1773973206130 mediaType=video
+[2026-03-20T02:20:09.259Z] [finalize-1773973209259-gppej1] /api/videos/finalize hit
+[2026-03-20T02:20:09.259Z] [finalize-1773973209259-gppej1] content-type=application/x-www-form-urlencoded;charset=UTF-8
+[2026-03-20T02:20:09.262Z] [finalize-1773973209259-gppej1] shopId=cmmt3jdab0000ep5k0gy3ufdq
+[2026-03-20T02:20:09.264Z] [finalize-1773973209259-gppej1] cloudinary secure_url=https://res.cloudinary.com/dowsxpbqm/video/upload/v1773973208/shopify-videos/shopify-cmmt3jdab0000ep5k0gy3ufdq-1773973206130.mp4
+[2026-03-20T02:20:09.264Z] [finalize-1773973209259-gppej1] detected type=VIDEO resource_type=video format=mp4
+[2026-03-20T02:20:09.277Z] [finalize-1773973209259-gppej1] prisma.video created id=cmmy9ugmp0001epkcueyoho9b
+[2026-03-20T02:20:09.277Z] [finalize-1773973209259-gppej1] done in 18ms
+[2026-03-20T02:20:26.482Z] [upload-loader-1773973226482-rsbdn2] /api/videos/upload loader hit method=GET
+[2026-03-20T02:20:26.485Z] [upload-loader-1773973226482-rsbdn2] signed params generated videoId=shopify-cmmt3jdab0000ep5k0gy3ufdq-1773973226485 mediaType=image
+[2026-03-20T02:20:27.260Z] [finalize-1773973227260-zb05d2] /api/videos/finalize hit
+[2026-03-20T02:20:27.261Z] [finalize-1773973227260-zb05d2] content-type=application/x-www-form-urlencoded;charset=UTF-8
+[2026-03-20T02:20:27.263Z] [finalize-1773973227260-zb05d2] shopId=cmmt3jdab0000ep5k0gy3ufdq
+[2026-03-20T02:20:27.264Z] [finalize-1773973227260-zb05d2] cloudinary secure_url=https://res.cloudinary.com/dowsxpbqm/image/upload/v1773973227/shopify-videos/shopify-cmmt3jdab0000ep5k0gy3ufdq-1773973226485.png
+[2026-03-20T02:20:27.264Z] [finalize-1773973227260-zb05d2] detected type=IMAGE resource_type=image format=png
+[2026-03-20T02:20:27.274Z] [finalize-1773973227260-zb05d2] prisma.video created id=cmmy9uuip0003epkcy6e64fo7
+[2026-03-20T02:20:27.274Z] [finalize-1773973227260-zb05d2] done in 14ms
+[2026-03-20T03:20:28.719Z] [upload-loader-1773976828719-u2o4ky] /api/videos/upload loader hit method=GET
+[2026-03-20T03:20:28.725Z] [upload-loader-1773976828719-u2o4ky] signed params generated videoId=shopify-cmmt3jdab0000ep5k0gy3ufdq-1773976828723 mediaType=video
+[2026-03-20T03:20:32.653Z] [finalize-1773976832653-z8qxo6] /api/videos/finalize hit
+[2026-03-20T03:20:32.653Z] [finalize-1773976832653-z8qxo6] content-type=application/x-www-form-urlencoded;charset=UTF-8
+[2026-03-20T03:20:32.655Z] [finalize-1773976832653-z8qxo6] shopId=cmmt3jdab0000ep5k0gy3ufdq
+[2026-03-20T03:20:32.657Z] [finalize-1773976832653-z8qxo6] cloudinary secure_url=https://res.cloudinary.com/dowsxpbqm/video/upload/v1773976831/shopify-videos/shopify-cmmt3jdab0000ep5k0gy3ufdq-1773976828723.mp4
+[2026-03-20T03:20:32.657Z] [finalize-1773976832653-z8qxo6] detected type=VIDEO resource_type=video format=mp4
+[2026-03-20T03:20:32.670Z] [finalize-1773976832653-z8qxo6] prisma.video created id=cmmyc04gj0001epbc2s619oa9
+[2026-03-20T03:20:32.671Z] [finalize-1773976832653-z8qxo6] done in 18ms
+[2026-03-20T11:49:55.738Z] [upload-loader-1774007395738-yqj49e] /api/videos/upload loader hit method=GET
+[2026-03-20T11:49:55.745Z] [upload-loader-1774007395738-yqj49e] signed params generated videoId=shopify-cmmt3jdab0000ep5k0gy3ufdq-1774007395744 mediaType=video
+[2026-03-20T11:49:59.973Z] [finalize-1774007399973-u8159t] /api/videos/finalize hit
+[2026-03-20T11:49:59.974Z] [finalize-1774007399973-u8159t] content-type=application/x-www-form-urlencoded;charset=UTF-8
+[2026-03-20T11:49:59.976Z] [finalize-1774007399973-u8159t] shopId=cmmt3jdab0000ep5k0gy3ufdq
+[2026-03-20T11:49:59.977Z] [finalize-1774007399973-u8159t] cloudinary secure_url=https://res.cloudinary.com/dowsxpbqm/video/upload/v1774007399/shopify-videos/shopify-cmmt3jdab0000ep5k0gy3ufdq-1774007395744.mp4
+[2026-03-20T11:49:59.977Z] [finalize-1774007399973-u8159t] detected type=VIDEO resource_type=video format=mp4
+[2026-03-20T11:49:59.994Z] [finalize-1774007399973-u8159t] prisma.video created id=cmmyu7acv0001ep28s442j68o
+[2026-03-20T11:49:59.994Z] [finalize-1774007399973-u8159t] done in 21ms
+[2026-03-20T12:45:51.012Z] [upload-loader-1774010751011-5478tf] /api/videos/upload loader hit method=GET
+[2026-03-20T12:45:51.028Z] [upload-loader-1774010751011-5478tf] signed params generated videoId=shopify-cmmyw5baf0000epkkx3vzufpy-1774010751027 mediaType=video
+[2026-03-20T12:45:55.307Z] [finalize-1774010755307-2g4tr4] /api/videos/finalize hit
+[2026-03-20T12:45:55.308Z] [finalize-1774010755307-2g4tr4] content-type=application/x-www-form-urlencoded;charset=UTF-8
+[2026-03-20T12:45:55.319Z] [finalize-1774010755307-2g4tr4] shopId=cmmyw5baf0000epkkx3vzufpy
+[2026-03-20T12:45:55.322Z] [finalize-1774010755307-2g4tr4] cloudinary secure_url=https://res.cloudinary.com/dowsxpbqm/video/upload/v1774010754/shopify-videos/shopify-cmmyw5baf0000epkkx3vzufpy-1774010751027.mp4
+[2026-03-20T12:45:55.322Z] [finalize-1774010755307-2g4tr4] detected type=VIDEO resource_type=video format=mp4
+[2026-03-20T12:45:55.336Z] [finalize-1774010755307-2g4tr4] prisma.video created id=cmmyw77ct000aepkkq55hk53o
+[2026-03-20T12:45:55.336Z] [finalize-1774010755307-2g4tr4] done in 29ms
+[2026-03-20T15:12:24.430Z] [upload-loader-1774019544430-mbg5fm] /api/videos/upload loader hit method=GET
+[2026-03-20T15:12:24.485Z] [upload-loader-1774019544430-mbg5fm] signed params generated videoId=shopify-cmmyw5baf0000epkkx3vzufpy-1774019544441 mediaType=image
+[2026-03-20T15:12:26.125Z] [finalize-1774019546125-a6vwkn] /api/videos/finalize hit
+[2026-03-20T15:12:26.125Z] [finalize-1774019546125-a6vwkn] content-type=application/x-www-form-urlencoded;charset=UTF-8
+[2026-03-20T15:12:26.137Z] [finalize-1774019546125-a6vwkn] shopId=cmmyw5baf0000epkkx3vzufpy
+[2026-03-20T15:12:26.141Z] [finalize-1774019546125-a6vwkn] cloudinary secure_url=https://res.cloudinary.com/dowsxpbqm/image/upload/v1774019546/shopify-videos/shopify-cmmyw5baf0000epkkx3vzufpy-1774019544441.png
+[2026-03-20T15:12:26.142Z] [finalize-1774019546125-a6vwkn] detected type=IMAGE resource_type=image format=png
+[2026-03-20T15:12:26.154Z] [finalize-1774019546125-a6vwkn] prisma.video created id=cmmz1fme8000jeprk2pc19ys2
+[2026-03-20T15:12:26.154Z] [finalize-1774019546125-a6vwkn] done in 29ms
+[2026-03-23T15:00:56.224Z] [upload-loader-1774278056224-dwauy0] /api/videos/upload loader hit method=GET
+[2026-03-23T15:00:56.239Z] [upload-loader-1774278056224-dwauy0] signed params generated videoId=shopify-cmmyw5baf0000epkkx3vzufpy-1774278056238 mediaType=image
+[2026-03-23T15:00:57.938Z] [finalize-1774278057938-znv7bi] /api/videos/finalize hit
+[2026-03-23T15:00:57.939Z] [finalize-1774278057938-znv7bi] content-type=application/x-www-form-urlencoded;charset=UTF-8
+[2026-03-23T15:00:57.952Z] [finalize-1774278057938-znv7bi] shopId=cmmyw5baf0000epkkx3vzufpy
+[2026-03-23T15:00:57.952Z] [finalize-1774278057938-znv7bi] cloudinary secure_url=https://res.cloudinary.com/dowsxpbqm/image/upload/v1774278061/shopify-videos/shopify-cmmyw5baf0000epkkx3vzufpy-1774278056238.webp
+[2026-03-23T15:00:57.953Z] [finalize-1774278057938-znv7bi] detected type=IMAGE resource_type=image format=webp
+[2026-03-23T15:00:57.964Z] [finalize-1774278057938-znv7bi] prisma.video created id=cmn3bcfdu000nep50h4t6l28k
+[2026-03-23T15:00:57.964Z] [finalize-1774278057938-znv7bi] done in 26ms

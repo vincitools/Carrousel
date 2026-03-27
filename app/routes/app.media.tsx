@@ -77,6 +77,7 @@ export async function action({ request }: ActionFunctionArgs) {
       shopId: shop.id,
       status: "PROCESSING",
       originalUrl: sourceUrl,
+      type: "VIDEO", // ou "IMAGE" se for o caso
     },
   });
 
@@ -178,30 +179,81 @@ function UploadSection({
 }) {
   const uploading = fetcher.state !== "idle";
   const [url, setUrl] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const MAX_SIZE = 100 * 1024 * 1024;
 
-  const handleDrop = async (_dropFiles, acceptedFiles) => {
+  const handleDrop = async (_dropFiles: File[], acceptedFiles: File[]) => {
+    console.log("handleDrop called with files:", acceptedFiles);
+    setError(null);
     const file = acceptedFiles[0];
     if (!file) return;
-
-    const res = await fetch("/api/videos/upload", { method: "POST" });
-    if (!res.ok) {
-      alert("Upload failed");
+    if (!file.type.startsWith("video/")) {
+      setError("Only video files are allowed.");
       return;
     }
-    const { uploadURL, videoId } = await res.json();
+    if (file.size > MAX_SIZE) {
+      setError("The video exceeds the 100MB maximum size.");
+      return;
+    }
+    try {
+      console.log("Fetching upload URL...");
+      const res = await fetch("/api/videos/upload", { method: "POST" });
+      console.log("Upload URL response status:", res.status);
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Upload URL error:", errorText);
+        setError("Failed to get the upload URL.");
+        return;
+      }
+      const { uploadURL, uploadParams, videoId } = await res.json();
+      console.log("Got upload params:", { uploadURL, videoId });
 
-    await fetch(uploadURL, {
-      method: "PUT",
-      body: file,
-      headers: { "Content-Type": file.type },
-    });
+      // Prepare form data for direct upload
+      const formData = new FormData();
+      formData.append("file", file);
+      Object.entries(uploadParams).forEach(([key, value]) => {
+        formData.append(key, value as string);
+      });
 
-    await fetch("/api/videos/finalize", {
-      method: "POST",
-      body: new URLSearchParams({ videoId }),
-    });
+      console.log("Uploading to Cloudinary...");
+      const uploadRes = await fetch(uploadURL, {
+        method: "POST",
+        body: formData,
+      });
+      console.log("Cloudinary upload response status:", uploadRes.status);
+
+      if (!uploadRes.ok) {
+        const errorText = await uploadRes.text();
+        console.error("Cloudinary upload error:", errorText);
+        setError("Failed to upload the video to Cloudinary.");
+        return;
+      }
+
+      const cloudinaryResult = await uploadRes.json();
+      console.log("Cloudinary result:", cloudinaryResult);
+
+      // Finalize by sending the result
+      console.log("Finalizing upload...");
+      const finalizeRes = await fetch("/api/videos/finalize", {
+        method: "POST",
+        body: new URLSearchParams({ result: JSON.stringify(cloudinaryResult) }),
+      });
+      console.log("Finalize response status:", finalizeRes.status);
+      if (!finalizeRes.ok) {
+        const errorText = await finalizeRes.text();
+        console.error("Finalize error:", errorText);
+        setError("Failed to finalize the upload on the backend.");
+        return;
+      }
+
+      console.log("Upload successful, reloading...");
+      // Reload the page or update state
+      fetcher.load("/app/media");
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      setError("Unexpected upload error. Please try again.");
+    }
   };
 
   const handleImport = () => {
@@ -229,21 +281,26 @@ function UploadSection({
           autoComplete="off"
         />
 
-        <Button onClick={handleImport} loading={uploading}>
+        <Button onClick={handleImport} loading={uploading} disabled={uploading}>
           Import
         </Button>
 
         <DropZone
           accept="video/mp4,video/webm,video/quicktime"
           onDrop={handleDrop}
+          disabled={uploading}
         >
           <DropZone.FileUpload />
         </DropZone>
 
+        {error && (
+          <Text as="span" tone="critical">{error}</Text>
+        )}
+
         {uploading && (
           <InlineStack gap="200" align="center">
             <Spinner size="small" />
-            <Text as="span">Processing...</Text>
+            <Text as="span">Processando...</Text>
           </InlineStack>
         )}
       </BlockStack>

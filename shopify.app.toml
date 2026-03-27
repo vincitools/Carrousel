@@ -2,7 +2,7 @@
 
 client_id = "d502b734f2ad37cf0eb3b63420b5d516"
 name = "carrousel-app"
-application_url = "https://example.com"
+application_url = "https://clinic-loves-responses-reproduce.trycloudflare.com"
 embedded = true
 
 [build]
@@ -22,7 +22,7 @@ api_version = "2026-04"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products"
+scopes = "read_products,write_products"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://clinic-loves-responses-reproduce.trycloudflare.com/auth/callback" ]

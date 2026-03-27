@@ -1,24 +1,44 @@
 import prisma from "../db.server";
 
 export async function requireShopDev() {
-  const shopDomain = "dev-shop.myshopify.com";
-
-  let shop = await prisma.shop.findUnique({
-    where: { shopDomain },
+  // Prefer a real installed shop first.
+  const realShop = await prisma.shop.findFirst({
+    where: {
+      uninstalledAt: null,
+      NOT: { accessToken: "dev-token" },
+    },
+    orderBy: { updatedAt: "desc" },
   });
 
-  if (!shop) {
-    shop = await prisma.shop.create({
-      data: {
-        shopDomain,
-        accessToken: "dev-token",   // ✅ token fake
+  if (realShop) {
+    const matchingOfflineSession = await prisma.session.findFirst({
+      where: {
+        isOnline: false,
+        shop: realShop.shopDomain,
       },
     });
+
+    if (matchingOfflineSession?.accessToken) {
+      const shop = await prisma.shop.update({
+        where: { id: realShop.id },
+        data: {
+          accessToken: matchingOfflineSession.accessToken,
+          uninstalledAt: null,
+        },
+      });
+      return { shop, session: { shop: shop.shopDomain }, admin: null };
+    }
+
+    return { shop: realShop, session: { shop: realShop.shopDomain }, admin: null };
   }
 
-  return {
-    shop,
-    session: { shop: shopDomain },
-    admin: null,
-  };
+  // Fallback to fake dev shop (used when the app has never been authenticated).
+  const shopDomain = "dev-shop.myshopify.com";
+  let shop = await prisma.shop.findUnique({ where: { shopDomain } });
+  if (!shop) {
+    shop = await prisma.shop.create({
+      data: { shopDomain, accessToken: "dev-token" },
+    });
+  }
+  return { shop, session: { shop: shopDomain }, admin: null };
 }

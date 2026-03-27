@@ -10,8 +10,8 @@ import "@shopify/polaris/build/esm/styles.css";
 
 export default function App() {
   return (
-    <html lang="en">
-      <head>
+    <html lang="en" suppressHydrationWarning>
+      <head suppressHydrationWarning>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         <link rel="preconnect" href="https://cdn.shopify.com/" />
@@ -20,10 +20,24 @@ export default function App() {
           href="https://cdn.shopify.com/static/fonts/inter/v4/styles.css"
         />
         <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+        <style>{`
+          html,
+          body,
+          button,
+          input,
+          textarea,
+          select {
+            font-family: var(--p-font-family-sans);
+          }
+
+          body {
+            margin: 0;
+          }
+        `}</style>
         <Meta />
         <Links />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <Outlet />
         <ScrollRestoration />
         <Scripts />
