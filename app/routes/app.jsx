@@ -30,6 +30,12 @@ export default function AppLayout() {
           <a href={`/app/playlists${search}`}>Playlists</a>
           <a href={`/app/widgets${search}`}>Widgets</a>
           <a href={`/app/settings${search}`}>Settings</a>
+          <a href="shopify://admin/products" target="_top" rel="noreferrer">
+            Shopify Products
+          </a>
+          <a href="shopify://admin/orders" target="_top" rel="noreferrer">
+            Shopify Orders
+          </a>
         </ui-nav-menu>
         <Outlet />
       </AppProvider>

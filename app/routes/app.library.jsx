@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Button } from "@shopify/polaris";
 
 function createTimeoutSignal(timeoutMs) {
   const controller = new AbortController();
@@ -711,32 +712,10 @@ function MediaCard({ item, isSelected, onToggleSelect, onTagProducts }) {
 }
 
 function ToolbarButton({ children, onClick, disabled, variant }) {
-  const isPrimary = variant === "primary";
-
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        background: disabled
-          ? "var(--p-color-bg-fill-disabled)"
-          : isPrimary
-            ? "var(--p-color-bg-fill-brand)"
-            : "var(--p-color-bg-surface)",
-        border: `1px solid ${isPrimary ? "var(--p-color-border-brand)" : "var(--p-color-border-secondary)"}`,
-        borderRadius: "10px",
-        boxShadow: isPrimary ? "inset 0 -1px 0 rgba(0,0,0,0.12)" : "none",
-        color: isPrimary ? "var(--p-color-text-inverse)" : disabled ? "var(--p-color-text-disabled)" : "var(--p-color-text)",
-        cursor: disabled ? "not-allowed" : "pointer",
-        fontSize: "14px",
-        fontWeight: 600,
-        opacity: disabled ? 0.7 : 1,
-        padding: "10px 14px",
-      }}
-    >
+    <Button onClick={onClick} disabled={disabled} variant={variant === "primary" ? "primary" : "secondary"}>
       {children}
-    </button>
+    </Button>
   );
 }
 

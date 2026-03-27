@@ -33,9 +33,29 @@ const resolvedApiVersion =
   ApiVersion.April25 ||
   "2025-07";
 
+const resolvedApiKey = getFirstEnv(
+  "SHOPIFY_API_KEY",
+  "API_KEY",
+  "SHOPIFY_CLIENT_ID",
+  "SHOPIFY_API_CLIENT_ID",
+);
+
+const resolvedApiSecret = getFirstEnv(
+  "SHOPIFY_API_SECRET",
+  "API_SECRET_KEY",
+  "SHOPIFY_API_SECRET_KEY",
+  "SHOPIFY_CLIENT_SECRET",
+);
+
+if (!resolvedApiKey) {
+  console.error(
+    "[shopify] Missing API key env. Checked: SHOPIFY_API_KEY, API_KEY, SHOPIFY_CLIENT_ID, SHOPIFY_API_CLIENT_ID",
+  );
+}
+
 const shopify = shopifyApp({
-  apiKey: getFirstEnv("SHOPIFY_API_KEY", "API_KEY"),
-  apiSecretKey: getFirstEnv("SHOPIFY_API_SECRET", "API_SECRET_KEY", "SHOPIFY_API_SECRET_KEY") || "",
+  apiKey: resolvedApiKey,
+  apiSecretKey: resolvedApiSecret || "",
   apiVersion: resolvedApiVersion,
   scopes: getFirstEnv("SCOPES")?.split(","),
   appUrl: resolveAppUrl(),

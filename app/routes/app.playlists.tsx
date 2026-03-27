@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { Button } from "@shopify/polaris";
 
 type XhrRequestParams = {
   url: string;
@@ -834,30 +835,13 @@ function ToolbarButton({
   onClick,
   variant = "secondary",
 }: {
-  children: ReactNode;
+  children: string | string[];
   onClick?: () => void;
   variant?: "primary" | "secondary";
 }) {
-  const isPrimary = variant === "primary";
-
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        background: isPrimary ? "var(--p-color-bg-fill-brand)" : "var(--p-color-bg-surface)",
-        border: `1px solid ${isPrimary ? "var(--p-color-border-brand)" : "var(--p-color-border-secondary)"}`,
-        borderRadius: "10px",
-        boxShadow: isPrimary ? "inset 0 -1px 0 rgba(0,0,0,0.12)" : "none",
-        color: isPrimary ? "var(--p-color-text-inverse)" : "var(--p-color-text)",
-        cursor: "pointer",
-        fontSize: "14px",
-        fontWeight: 600,
-        minHeight: "36px",
-        padding: "8px 14px",
-      }}
-    >
+    <Button onClick={onClick} variant={variant === "primary" ? "primary" : "secondary"}>
       {children}
-    </button>
+    </Button>
   );
 }
