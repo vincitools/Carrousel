@@ -44,7 +44,9 @@ export default function AppLayout() {
 }
 
 export function ErrorBoundary() {
-  return boundary.error(useRouteError());
+  const error = useRouteError();
+  console.error("[app.jsx ErrorBoundary]", error);
+  return boundary.error(error);
 }
 
 export const headers = (headersArgs) => {
