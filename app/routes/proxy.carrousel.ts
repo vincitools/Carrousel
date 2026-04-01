@@ -8,6 +8,7 @@ type StorefrontItem = {
   type: "VIDEO" | "IMAGE";
   url: string | null;
   thumbnail: string | null;
+  productIds: string[];
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -37,6 +38,7 @@ function mapVideoItem(video: {
     type: video.type,
     url: video.originalUrl,
     thumbnail: video.thumbnailUrl || video.originalUrl,
+    productIds: [],
   };
 }
 
@@ -113,9 +115,11 @@ async function getProductTaggedVideos(shopId: string, productId: string, limit: 
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  // Validates HMAC — throws 400 if the request is not from Shopify's app proxy.
   const proxyContext = await authenticate.public.appProxy(request);
 
   const url = new URL(request.url);
+  // After HMAC validation the `shop` query param is trustworthy.
   const shopDomain = (
     proxyContext.session?.shop || url.searchParams.get("shop") || ""
   ).trim().toLowerCase();
@@ -128,28 +132,37 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return jsonResponse({ items: [], error: "Missing shop domain." }, 400);
   }
 
-  if (!proxyContext.session) {
-    return jsonResponse(
-      { items: [], error: "The app proxy is authenticated, but no installed shop session was found. Reinstall the app and approve scopes again." },
-      401,
-    );
+  // If a live session is present, keep the shop record fresh.
+  // If not (e.g. session storage was cleared), fall through using the shop
+  // domain from the query param — the HMAC already proved legitimacy.
+  if (proxyContext.session) {
+    await prisma.shop.upsert({
+      where: { shopDomain },
+      update: {
+        accessToken: proxyContext.session.accessToken,
+        uninstalledAt: null,
+      },
+      create: {
+        shopDomain,
+        accessToken: proxyContext.session.accessToken,
+      },
+    });
   }
 
-  const shop = await prisma.shop.upsert({
+  const shop = await prisma.shop.findUnique({
     where: { shopDomain },
-    update: {
-      accessToken: proxyContext.session.accessToken,
-      uninstalledAt: null,
-    },
-    create: {
-      shopDomain,
-      accessToken: proxyContext.session.accessToken,
-    },
     select: { id: true },
   });
 
   if (!shop) {
-    return jsonResponse({ items: [], error: "Shop not found." }, 404);
+    return jsonResponse(
+      {
+        items: [],
+        error:
+          "No playlist data was found for this store yet. Open the app in Shopify Admin to finish setup.",
+      },
+      404,
+    );
   }
 
   let items: StorefrontItem[] = [];
@@ -168,6 +181,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   if (items.length === 0) {
     items = await getDefaultPlaylistVideos(shop.id, limit);
+  }
+
+  // Enrich items with their tagged product IDs (single batch query)
+  if (items.length > 0) {
+    const tagRecords = await prisma.videoProductTag.findMany({
+      where: { videoId: { in: items.map((i) => i.id) } },
+      select: { videoId: true, shopifyProductId: true },
+    });
+    const tagMap = new Map<string, string[]>();
+    for (const tag of tagRecords) {
+      if (!tagMap.has(tag.videoId)) tagMap.set(tag.videoId, []);
+      tagMap.get(tag.videoId)!.push(tag.shopifyProductId);
+    }
+    items = items.map((item) => ({
+      ...item,
+      productIds: tagMap.get(item.id) || [],
+    }));
   }
 
   return jsonResponse({

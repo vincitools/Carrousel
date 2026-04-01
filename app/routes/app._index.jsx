@@ -62,9 +62,9 @@ export default function Index() {
 
   const stepItems = [
     {
-      title: "Install Reelio App",
+      title: "Install VinciTool's App",
       description:
-        "Complete the installation process and set up your Reelio account to start creating engaging content.",
+        "Complete the installation process and set up your VinciTool's account to start creating engaging content.",
       done: onboarding.appInstalled,
       ctaLabel: "Open Settings",
       href: "/app/settings",
@@ -95,7 +95,7 @@ export default function Index() {
   return (
     <Page
       title="Dashboard"
-      subtitle="Welcome to Reelio"
+      subtitle="Welcome to VinciTool's"
       primaryAction={{ content: "Open Products", url: "shopify://admin/products", target: "_top" }}
       secondaryActions={[{ content: "Open Customers", url: "shopify://admin/customers", target: "_top" }]}
     >

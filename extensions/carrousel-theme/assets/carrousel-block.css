@@ -1,110 +1,237 @@
+/* ══════════════════════════════════════════════════════════════
+   CARROUSEL BLOCK — strip + lightbox
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── container ── */
 .carrousel-block {
-  --carrousel-bg: #ffffff;
-  --carrousel-card-bg: #ffffff;
-  --carrousel-text: #111827;
-  --carrousel-accent: #111827;
-  --carrousel-radius: 18px;
-  --carrousel-gap: 16px;
-  --carrousel-columns-mobile: 1;
-  --carrousel-columns-desktop: 3;
-  background: var(--carrousel-bg);
-  border-radius: calc(var(--carrousel-radius) + 4px);
-  color: var(--carrousel-text);
-  padding: 20px;
+  background: var(--carrousel-bg, #f5ede8);
+  overflow: hidden;
+  padding: 28px 0 32px;
 }
 
-.carrousel-block__header {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.carrousel-block__title {
-  font-size: 1.25rem;
+/* ── heading ── */
+.crsl-heading {
+  color: var(--carrousel-text, #1a1a1a);
+  font-size: clamp(1.1rem, 2.5vw, 1.5rem);
   font-weight: 700;
   line-height: 1.2;
-  margin: 0;
+  margin: 0 24px 18px;
 }
 
-.carrousel-block__controls {
-  display: flex;
-  gap: 8px;
-}
-
-.carrousel-block__control {
-  appearance: none;
-  background: var(--carrousel-card-bg);
-  border: 1px solid color-mix(in srgb, var(--carrousel-accent) 22%, white);
-  border-radius: 999px;
-  color: var(--carrousel-text);
-  cursor: pointer;
-  height: 38px;
-  width: 38px;
-}
-
-.carrousel-block__viewport {
+/* ── scroll viewport ── */
+.crsl-viewport {
   overflow-x: auto;
+  padding: 4px 24px 10px;
   scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 
-.carrousel-block__viewport::-webkit-scrollbar {
+.crsl-viewport::-webkit-scrollbar {
   display: none;
 }
 
-.carrousel-block__track {
-  display: grid;
-  gap: var(--carrousel-gap);
-  grid-auto-columns: calc(100% / var(--carrousel-columns-mobile) - (var(--carrousel-gap) * (var(--carrousel-columns-mobile) - 1) / var(--carrousel-columns-mobile)));
-  grid-auto-flow: column;
+/* ── flex track ── */
+.crsl-track {
+  display: flex;
+  gap: 10px;
+  width: max-content;
 }
 
-.carrousel-block__card {
-  background: var(--carrousel-card-bg);
-  border: 1px solid color-mix(in srgb, var(--carrousel-accent) 12%, white);
-  border-radius: var(--carrousel-radius);
+/* ── card ── */
+.crsl-card {
+  appearance: none;
+  background: #111;
+  border: none;
+  border-radius: var(--carrousel-radius, 14px);
+  cursor: pointer;
+  flex: 0 0 auto;
   overflow: hidden;
+  padding: 0;
+  position: relative;
+  scroll-snap-align: start;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  width: 190px;
 }
 
-.carrousel-block__media {
+.crsl-card:hover {
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+  transform: translateY(-2px);
+}
+
+.crsl-card:active {
+  transform: scale(0.97) translateY(0);
+}
+
+@media screen and (min-width: 750px) {
+  .crsl-card {
+    width: 232px;
+  }
+}
+
+/* video / image inside card */
+.crsl-card__media {
   aspect-ratio: 9 / 16;
-  background: color-mix(in srgb, var(--carrousel-accent) 8%, white);
   display: block;
+  height: auto;
+  object-fit: cover;
+  pointer-events: none;
+  width: 100%;
+}
+
+/* play overlay */
+.crsl-card__play {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  border-radius: 50%;
+  display: flex;
+  height: 46px;
+  justify-content: center;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 46px;
+}
+
+/* ── empty state ── */
+.crsl-empty {
+  border: 1px dashed rgba(0, 0, 0, 0.18);
+  border-radius: 12px;
+  color: var(--carrousel-text, #555);
+  font-size: 0.9rem;
+  margin: 0 24px;
+  padding: 28px 20px;
+  text-align: center;
+}
+
+/* ══ LIGHTBOX ═══════════════════════════════════════════════════ */
+
+.crsl-lb {
+  align-items: center;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  left: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 99999;
+}
+
+.crsl-lb__backdrop {
+  background: rgba(0, 0, 0, 0.84);
+  inset: 0;
+  position: absolute;
+}
+
+.crsl-lb__frame {
+  border-radius: 22px;
+  display: flex;
+  flex-direction: column;
+  max-height: 94svh;
+  max-width: 388px;
+  overflow: hidden;
+  position: relative;
+  width: 88vw;
+  z-index: 1;
+}
+
+/* video wrapper */
+.crsl-lb__media-wrap {
+  background: #000;
+  flex: 1 1 auto;
+  overflow: hidden;
+  position: relative;
+}
+
+.crsl-lb__video {
+  display: block;
+  max-height: calc(94svh - 70px);
   object-fit: cover;
   width: 100%;
 }
 
-.carrousel-block__content {
-  padding: 12px 14px 14px;
+/* overlay (controls on top of video) */
+.crsl-lb__overlay {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
 }
 
-.carrousel-block__label {
-  color: color-mix(in srgb, var(--carrousel-text) 72%, white);
-  display: block;
-  font-size: 0.75rem;
-  letter-spacing: 0.04em;
-  margin-bottom: 4px;
-  text-transform: uppercase;
+.crsl-lb__overlay-top {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 14px 0;
+  pointer-events: all;
 }
 
-.carrousel-block__name {
-  font-size: 0.95rem;
+.crsl-lb__title {
+  background: rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.78rem;
   font-weight: 600;
-  line-height: 1.35;
-  margin: 0;
+  max-width: 200px;
+  overflow: hidden;
+  padding: 6px 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.carrousel-block__empty {
-  border: 1px dashed color-mix(in srgb, var(--carrousel-accent) 20%, white);
-  border-radius: var(--carrousel-radius);
-  padding: 24px;
-  text-align: center;
+.crsl-lb__top-actions {
+  display: flex;
+  gap: 8px;
 }
 
-@media screen and (min-width: 750px) {
-  .carrousel-block__track {
-    grid-auto-columns: calc(100% / var(--carrousel-columns-desktop) - (var(--carrousel-gap) * (var(--carrousel-columns-desktop) - 1) / var(--carrousel-columns-desktop)));
-  }
+/* icon buttons */
+.crsl-lb__btn {
+  align-items: center;
+  appearance: none;
+  background: rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+
+/* product bar */
+.crsl-lb__product-bar {
+  align-items: center;
+  background: #fff;
+  border-top: 1px solid #e5e5e5;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 14px 18px;
+}
+
+.crsl-lb__product-label {
+  color: #666;
+  font-size: 0.82rem;
+}
+
+.crsl-lb__shop-btn {
+  background: #111;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 10px 20px;
+  text-decoration: none;
+  white-space: nowrap;
 }

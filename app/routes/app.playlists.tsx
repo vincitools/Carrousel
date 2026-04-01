@@ -520,7 +520,7 @@ export default function PlaylistsPage() {
                 type="text"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Reelio Playlist 4"
+                placeholder="VinciTool's Playlist 4"
                 style={{ border: "1px solid var(--p-color-border)", borderRadius: "8px", boxSizing: "border-box", fontSize: "14px", padding: "10px 12px", width: "100%" }}
               />
               <div style={{ color: "var(--p-color-text-secondary)", fontSize: "13px", marginTop: "4px" }}>Required</div>

@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { requireShopDev } from "../utils/requireShopDev.server";
+import { requireShop } from "../utils/requireShop.server";
 import prisma from "../db.server";
-import { authenticate, unauthenticated } from "../shopify.server";
+import { unauthenticated } from "../shopify.server";
 
 function normalizeProducts(raw: any[]) {
   return raw.map((node) => ({
@@ -18,49 +18,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const url = new URL(request.url);
     const query = (url.searchParams.get("q") || "").trim();
 
-    let shopDomain = "";
-
-    try {
-      const { session } = await authenticate.admin(request);
-      if (session?.shop) {
-        shopDomain = session.shop;
-
-        if (session.accessToken) {
-          await prisma.shop.upsert({
-            where: { shopDomain: session.shop },
-            create: {
-              shopDomain: session.shop,
-              accessToken: session.accessToken,
-            },
-            update: {
-              accessToken: session.accessToken,
-              uninstalledAt: null,
-            },
-          });
-        }
-      }
-    } catch {
-      // Ignore auth failure here and fallback to dev/session helpers below.
-    }
-
-    if (!shopDomain) {
-      const { shop: devShop } = await requireShopDev();
-      shopDomain = devShop?.shopDomain || "";
-    }
-
-    if (!shopDomain) {
-      const realShop = await prisma.shop.findFirst({
-        where: {
-          uninstalledAt: null,
-          NOT: { accessToken: "dev-token" },
-        },
-        orderBy: { updatedAt: "desc" },
-      });
-
-      if (realShop) {
-        shopDomain = realShop.shopDomain;
-      }
-    }
+    const { session, shop, admin } = await requireShop(request);
+    let shopDomain = shop?.shopDomain || session?.shop || "";
 
     if (!shopDomain) {
       return Response.json(
@@ -94,8 +53,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       query: query ? `${query} status:ACTIVE` : "status:ACTIVE",
     };
 
-    const { admin } = await unauthenticated.admin(shopDomain);
-    const response = await admin.graphql(gqlQuery, { variables });
+    const adminClient = admin || (await unauthenticated.admin(shopDomain)).admin;
+    const response = await adminClient.graphql(gqlQuery, { variables });
 
     const payload: any = await response.json();
     if (!response.ok || payload?.errors) {
@@ -123,10 +82,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const products = normalizeProducts(edges.map((edge: any) => edge.node));
 
     return Response.json({ products });
-  } catch (error) {
+  } catch (error: any) {
     console.error("[api.products.search] failed", error);
+
+    const details =
+      typeof error?.message === "string" && error.message.trim().length > 0
+        ? ` ${error.message}`
+        : "";
+
     return Response.json(
-      { products: [], error: "Unexpected error while loading products." },
+      { products: [], error: `Unexpected error while loading products.${details}` },
       { status: 500 },
     );
   }
