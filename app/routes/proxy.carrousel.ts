@@ -165,6 +165,38 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     select: { id: true },
   });
 
+  // If the Shop row was lost (e.g. DB reset), rebuild it from the offline
+  // Shopify session so proxy requests keep working in production/theme editor.
+  if (!shop) {
+    const offlineSession = await prisma.session.findFirst({
+      where: {
+        shop: shopDomain,
+        isOnline: false,
+      },
+      select: {
+        accessToken: true,
+      },
+    });
+
+    if (offlineSession?.accessToken) {
+      const rebuiltShop = await prisma.shop.upsert({
+        where: { shopDomain },
+        update: {
+          accessToken: offlineSession.accessToken,
+          uninstalledAt: null,
+        },
+        create: {
+          shopDomain,
+          accessToken: offlineSession.accessToken,
+          uninstalledAt: null,
+        },
+        select: { id: true },
+      });
+
+      shop = rebuiltShop;
+    }
+  }
+
   // Dev-only fallback: if DB was reset and session storage is out of sync,
   // use the newest active shop so Theme Editor preview does not hard-fail.
   if (!shop && process.env.NODE_ENV !== "production") {
