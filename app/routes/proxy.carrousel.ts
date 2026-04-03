@@ -197,6 +197,37 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
+  // If domain-based resolution failed but a playlist name was requested,
+  // resolve shop by unique playlist match across active shops.
+  if (!shop && playlistName) {
+    const allPlaylists = await prisma.playlist.findMany({
+      select: {
+        shopId: true,
+        name: true,
+        shop: {
+          select: {
+            uninstalledAt: true,
+          },
+        },
+      },
+    });
+    const normalizedTarget = playlistName.trim().toLowerCase();
+    const matchingShopIds = Array.from(
+      new Set(
+        allPlaylists
+          .filter(
+            (p) =>
+              !p.shop.uninstalledAt &&
+              p.name.trim().toLowerCase() === normalizedTarget,
+          )
+          .map((p) => p.shopId),
+      ),
+    );
+    if (matchingShopIds.length === 1) {
+      shop = { id: matchingShopIds[0] };
+    }
+  }
+
   // Dev-only fallback: if DB was reset and session storage is out of sync,
   // use the newest active shop so Theme Editor preview does not hard-fail.
   if (!shop && process.env.NODE_ENV !== "production") {
@@ -205,6 +236,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       orderBy: { updatedAt: "desc" },
       select: { id: true },
     });
+  }
+
+  // Production-safe fallback: if there is exactly one active installed shop,
+  // use it when incoming proxy domain doesn't match the stored shop domain
+  // (common during domain migrations/custom-domain changes).
+  if (!shop && process.env.NODE_ENV === "production") {
+    const activeShops = await prisma.shop.findMany({
+      where: { uninstalledAt: null },
+      select: { id: true },
+      take: 2,
+      orderBy: { updatedAt: "desc" },
+    });
+    if (activeShops.length === 1) {
+      shop = { id: activeShops[0].id };
+    }
   }
 
   if (!shop) {
