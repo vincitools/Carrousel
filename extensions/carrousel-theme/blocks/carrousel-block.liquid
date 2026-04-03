@@ -35,6 +35,8 @@
     --carrousel-radius: {{ block.settings.corner_radius }}px;
     --carrousel-columns-mobile: {{ block.settings.columns_mobile }};
     --carrousel-columns-desktop: {{ block.settings.columns_desktop }};
+    --carrousel-pt: {{ block.settings.padding_top }}px;
+    --carrousel-pb: {{ block.settings.padding_bottom }}px;
     font-family: {{ resolved_font }};
   "
   {{ block.shopify_attributes }}
@@ -114,6 +116,26 @@
       "max": 32,
       "step": 1,
       "default": 18
+    },
+    {
+      "type": "range",
+      "id": "padding_top",
+      "label": "Padding top",
+      "min": 0,
+      "max": 120,
+      "step": 4,
+      "unit": "px",
+      "default": 28
+    },
+    {
+      "type": "range",
+      "id": "padding_bottom",
+      "label": "Padding bottom",
+      "min": 0,
+      "max": 120,
+      "step": 4,
+      "unit": "px",
+      "default": 32
     },
     {
       "type": "color",

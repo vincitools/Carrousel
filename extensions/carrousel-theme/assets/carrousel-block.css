@@ -6,7 +6,7 @@
 .carrousel-block {
   background: var(--carrousel-bg, #f5ede8);
   overflow: hidden;
-  padding: 28px 0 32px;
+  padding: var(--carrousel-pt, 28px) 0 var(--carrousel-pb, 32px);
 }
 
 /* ── heading ── */

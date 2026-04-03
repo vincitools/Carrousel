@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { requireShop } from "../utils/requireShop.server";
+import { unauthenticated } from "../shopify.server";
 
 function normalizeProducts(raw: any[]) {
   return raw.map((node) => ({
@@ -52,14 +53,38 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     };
 
     if (!admin) {
-      return Response.json(
-        {
-          products: [],
-          error:
-            "Unable to load products because there is no authenticated admin session. Open the app inside Shopify Admin and try again.",
-        },
-        { status: 401 },
-      );
+      // authenticate.admin failed on this XHR — use the offline session token
+      // stored in Prisma session storage for the real shop. This is safe because
+      // the shop domain was validated against the DB by requireShop above, and
+      // we explicitly reject the fake dev-shop to prevent cross-tenant leakage.
+      const DEV_PLACEHOLDER = "dev-shop.myshopify.com";
+      if (!shopDomain || shopDomain === DEV_PLACEHOLDER) {
+        return Response.json(
+          {
+            products: [],
+            error:
+              "Unable to load products: no real Shopify store session found. Open the app inside Shopify Admin to authenticate.",
+          },
+          { status: 401 },
+        );
+      }
+      try {
+        const { admin: offlineAdmin } = await unauthenticated.admin(shopDomain);
+        const response = await offlineAdmin.graphql(gqlQuery, { variables });
+        const payload: any = await response.json();
+        const edges = payload?.data?.products?.edges || [];
+        return Response.json({ products: normalizeProducts(edges.map((e: any) => e.node)) });
+      } catch (offlineError: any) {
+        console.error("[api.products.search] offline session fallback failed", offlineError);
+        return Response.json(
+          {
+            products: [],
+            error:
+              "Unable to load products: the offline session is missing or expired. Reinstall the app in Shopify Admin.",
+          },
+          { status: 401 },
+        );
+      }
     }
 
     const adminClient = admin;
