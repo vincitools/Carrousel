@@ -287,22 +287,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
-  const shopRecord = await prisma.shop.findUnique({
-    where: { id: shop.id },
-    select: { id: true, shopDomain: true, accessToken: true },
-  });
-
-  if (!shopRecord) {
-    return jsonResponse(
-      {
-        items: [],
-        error:
-          "No playlist data was found for this store yet. Open the app in Shopify Admin to finish setup.",
-      },
-      404,
-    );
-  }
-
   // If domain-based resolution failed but a playlist name was requested,
   // resolve shop by unique playlist match across active shops.
   if (!shop && playlistName) {
@@ -360,6 +344,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   if (!shop) {
+    return jsonResponse(
+      {
+        items: [],
+        error:
+          "No playlist data was found for this store yet. Open the app in Shopify Admin to finish setup.",
+      },
+      404,
+    );
+  }
+
+  const shopRecord = await prisma.shop.findUnique({
+    where: { id: shop.id },
+    select: { id: true, shopDomain: true, accessToken: true },
+  });
+
+  if (!shopRecord) {
     return jsonResponse(
       {
         items: [],

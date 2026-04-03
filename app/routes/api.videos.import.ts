@@ -19,10 +19,24 @@ type ResolvedMedia = {
 };
 
 function decodeEscapedUrl(value: string) {
-  return value
-    .replace(/\\u0026/g, "&")
-    .replace(/\\u002F/g, "/")
-    .replace(/\\\//g, "/");
+  const unicodeDecoded = value.replace(/\\u([0-9a-fA-F]{4})/g, (_match, hex) =>
+    String.fromCharCode(parseInt(hex, 16)),
+  );
+
+  return unicodeDecoded
+    .replace(/\\\//g, "/")
+    .replace(/\\x26/g, "&");
+}
+
+function extractInstagramShortcode(parsedUrl: URL) {
+  const parts = parsedUrl.pathname.split("/").filter(Boolean);
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    const key = parts[i].toLowerCase();
+    if (key === "reel" || key === "reels" || key === "p" || key === "tv") {
+      return parts[i + 1];
+    }
+  }
+  return "";
 }
 
 function normalizeTitleHint(value: string | undefined) {
@@ -48,6 +62,9 @@ function extractInstagramMediaUrl(html: string) {
 
   const jsonVideoUrl = html.match(/"video_url"\s*:\s*"([^"]+)"/i)?.[1];
   if (jsonVideoUrl) return decodeEscapedUrl(jsonVideoUrl);
+
+  const quotedVideoUrl = html.match(/"video_url":"([^"]+)"/i)?.[1];
+  if (quotedVideoUrl) return decodeEscapedUrl(quotedVideoUrl);
 
   return "";
 }
@@ -98,12 +115,28 @@ async function resolveSupportedMediaUrl(parsedUrl: URL): Promise<ResolvedMedia> 
     throw new Error("Only Instagram, TikTok, or direct media URLs are supported.");
   }
 
-  const html = await fetchPageHtml(parsedUrl.toString());
-  const titleHint = normalizeTitleHint(
+  let html = await fetchPageHtml(parsedUrl.toString());
+  let titleHint = normalizeTitleHint(
     extractMetaContent(html, "og:title") || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1],
   );
 
-  const mediaUrl = isInstagram ? extractInstagramMediaUrl(html) : extractTikTokMediaUrl(html);
+  let mediaUrl = isInstagram ? extractInstagramMediaUrl(html) : extractTikTokMediaUrl(html);
+
+  // Instagram reels often hide direct URL on canonical page but expose it on embed endpoint.
+  if (!mediaUrl && isInstagram) {
+    const shortcode = extractInstagramShortcode(parsedUrl);
+    if (shortcode) {
+      const embedUrl = `https://www.instagram.com/reel/${shortcode}/embed/captioned/`;
+      const embedHtml = await fetchPageHtml(embedUrl);
+      mediaUrl = extractInstagramMediaUrl(embedHtml);
+      if (!titleHint) {
+        titleHint = normalizeTitleHint(
+          extractMetaContent(embedHtml, "og:title") || embedHtml.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1],
+        );
+      }
+    }
+  }
+
   if (!mediaUrl) {
     throw new Error(
       "Could not extract a public media file from this link. Private/restricted posts are not supported.",
