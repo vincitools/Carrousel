@@ -13,18 +13,109 @@ cloudinary.config({
 const VIDEO_EXTENSION_PATTERN = /\.(mp4|mov|webm|m4v|avi|mkv)(\?.*)?$/i;
 const IMAGE_EXTENSION_PATTERN = /\.(jpg|jpeg|png|gif|webp|avif)(\?.*)?$/i;
 
+type ResolvedMedia = {
+  mediaUrl: string;
+  titleHint?: string;
+};
+
+function decodeEscapedUrl(value: string) {
+  return value
+    .replace(/\\u0026/g, "&")
+    .replace(/\\u002F/g, "/")
+    .replace(/\\\//g, "/");
+}
+
+function normalizeTitleHint(value: string | undefined) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  return text
+    .replace(/^Watch\s+/i, "")
+    .replace(/\s+on\s+(Instagram|TikTok).*$/i, "")
+    .trim();
+}
+
+function extractMetaContent(html: string, propertyName: string) {
+  const regex = new RegExp(
+    `<meta[^>]+(?:property|name)=["']${propertyName}["'][^>]+content=["']([^"']+)["']`,
+    "i",
+  );
+  return html.match(regex)?.[1] || "";
+}
+
+function extractInstagramMediaUrl(html: string) {
+  const ogVideo = extractMetaContent(html, "og:video:secure_url") || extractMetaContent(html, "og:video");
+  if (ogVideo) return decodeEscapedUrl(ogVideo);
+
+  const jsonVideoUrl = html.match(/"video_url"\s*:\s*"([^"]+)"/i)?.[1];
+  if (jsonVideoUrl) return decodeEscapedUrl(jsonVideoUrl);
+
+  return "";
+}
+
+function extractTikTokMediaUrl(html: string) {
+  const ogVideo = extractMetaContent(html, "og:video:secure_url") || extractMetaContent(html, "og:video");
+  if (ogVideo) return decodeEscapedUrl(ogVideo);
+
+  const playAddr = html.match(/"playAddr"\s*:\s*"([^"]+)"/i)?.[1];
+  if (playAddr) return decodeEscapedUrl(playAddr);
+
+  const downloadAddr = html.match(/"downloadAddr"\s*:\s*"([^"]+)"/i)?.[1];
+  if (downloadAddr) return decodeEscapedUrl(downloadAddr);
+
+  return "";
+}
+
+async function fetchPageHtml(targetUrl: string) {
+  const response = await fetch(targetUrl, {
+    method: "GET",
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+    redirect: "follow",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Could not fetch public page (${response.status}).`);
+  }
+
+  return response.text();
+}
+
+async function resolveSupportedMediaUrl(parsedUrl: URL): Promise<ResolvedMedia> {
+  const path = `${parsedUrl.pathname}${parsedUrl.search}`;
+  if (VIDEO_EXTENSION_PATTERN.test(path) || IMAGE_EXTENSION_PATTERN.test(path)) {
+    return { mediaUrl: parsedUrl.toString() };
+  }
+
+  const host = parsedUrl.hostname.toLowerCase();
+  const isInstagram = host.includes("instagram.com");
+  const isTikTok = host.includes("tiktok.com") || host.includes("vm.tiktok.com");
+
+  if (!isInstagram && !isTikTok) {
+    throw new Error("Only Instagram, TikTok, or direct media URLs are supported.");
+  }
+
+  const html = await fetchPageHtml(parsedUrl.toString());
+  const titleHint = normalizeTitleHint(
+    extractMetaContent(html, "og:title") || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1],
+  );
+
+  const mediaUrl = isInstagram ? extractInstagramMediaUrl(html) : extractTikTokMediaUrl(html);
+  if (!mediaUrl) {
+    throw new Error(
+      "Could not extract a public media file from this link. Private/restricted posts are not supported.",
+    );
+  }
+
+  return { mediaUrl, titleHint };
+}
+
 function getDirectUrlValidationError(targetUrl: URL) {
   if (targetUrl.protocol !== "https:") {
     return "Please use a valid HTTPS URL.";
-  }
-
-  const host = targetUrl.hostname.toLowerCase();
-  const path = `${targetUrl.pathname}${targetUrl.search}`;
-  const isInstagramPage = host.includes("instagram.com") && !VIDEO_EXTENSION_PATTERN.test(path) && !IMAGE_EXTENSION_PATTERN.test(path);
-  const isTikTokPage = host.includes("tiktok.com") && !VIDEO_EXTENSION_PATTERN.test(path) && !IMAGE_EXTENSION_PATTERN.test(path);
-
-  if (isInstagramPage || isTikTokPage) {
-    return "Only direct public media file URLs are supported for now. Instagram and TikTok page links require a dedicated integration.";
   }
 
   return null;
@@ -68,13 +159,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({ error: validationError }, { status: 400 });
     }
 
-    const result = await cloudinary.uploader.upload(parsedUrl.toString(), {
+    const resolved = await resolveSupportedMediaUrl(parsedUrl);
+
+    const result = await cloudinary.uploader.upload(resolved.mediaUrl, {
       folder: "shopify-videos",
-      resource_type: inferResourceType(parsedUrl.toString()),
+      resource_type: inferResourceType(resolved.mediaUrl),
     });
 
     const video = await prisma.video.create({
-      data: buildMediaRecordData(shop.id, result),
+      data: buildMediaRecordData(shop.id, result, resolved.titleHint || null),
     });
 
     return Response.json({
@@ -90,7 +183,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch (error) {
     console.error("[api.videos.import] import failed", error);
     return Response.json(
-      { error: "Could not import the URL. Make sure the link points directly to a public media file." },
+      {
+        error:
+          error instanceof Error
+            ? `Could not import the URL. ${error.message}`
+            : "Could not import the URL. Make sure the post is public and the link is valid.",
+      },
       { status: 500 }
     );
   }

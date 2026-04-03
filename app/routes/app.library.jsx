@@ -987,7 +987,7 @@ function UploadModal({
             >
               <span style={{ fontWeight: 700 }}>i</span>
               <span style={{ color: "#0f172a", fontSize: "14px" }}>
-                Only publicly accessible direct media URLs can be imported for now.
+                Public Instagram and TikTok links are supported. Private/restricted posts are not supported.
               </span>
             </div>
 
