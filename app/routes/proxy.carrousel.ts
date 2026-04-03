@@ -9,6 +9,15 @@ type StorefrontItem = {
   url: string | null;
   thumbnail: string | null;
   productIds: string[];
+  linkedProduct?: {
+    id: string;
+    title: string;
+    handle: string;
+    image: string | null;
+    price: string | null;
+    compareAtPrice: string | null;
+    url: string;
+  } | null;
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -23,6 +32,87 @@ function jsonResponse(body: unknown, status = 200) {
 
 function cleanPlaylistName(value: string | null) {
   return (value || "").trim();
+}
+
+function toProductGid(value: string) {
+  const trimmed = (value || "").trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("gid://shopify/Product/")) return trimmed;
+  const numeric = trimmed.match(/(\d+)/)?.[1];
+  return numeric ? `gid://shopify/Product/${numeric}` : trimmed;
+}
+
+async function fetchProductPreviewMap(
+  shopDomain: string,
+  accessToken: string,
+  rawProductIds: string[],
+) {
+  const uniqueGids = Array.from(new Set(rawProductIds.map(toProductGid).filter(Boolean)));
+  if (uniqueGids.length === 0) return new Map<string, StorefrontItem["linkedProduct"]>();
+
+  const query = `
+    query ProductPreviews($ids: [ID!]!) {
+      nodes(ids: $ids) {
+        ... on Product {
+          id
+          title
+          handle
+          featuredImage {
+            url
+          }
+          priceRangeV2 {
+            minVariantPrice {
+              amount
+              currencyCode
+            }
+          }
+          compareAtPriceRange {
+            minVariantCompareAtPrice {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const response = await fetch(
+    `https://${shopDomain}/admin/api/2025-07/graphql.json`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": accessToken,
+      },
+      body: JSON.stringify({ query, variables: { ids: uniqueGids } }),
+    },
+  );
+
+  const payload = (await response.json()) as any;
+  const nodes = Array.isArray(payload?.data?.nodes) ? payload.data.nodes : [];
+  const byGid = new Map<string, StorefrontItem["linkedProduct"]>();
+
+  for (const node of nodes) {
+    if (!node?.id || !node?.handle) continue;
+    const priceAmount = node?.priceRangeV2?.minVariantPrice?.amount || null;
+    const priceCurrency = node?.priceRangeV2?.minVariantPrice?.currencyCode || null;
+    const compareAmount = node?.compareAtPriceRange?.minVariantCompareAtPrice?.amount || null;
+    const compareCurrency = node?.compareAtPriceRange?.minVariantCompareAtPrice?.currencyCode || null;
+
+    byGid.set(node.id, {
+      id: node.id,
+      title: node.title || "Product",
+      handle: node.handle,
+      image: node?.featuredImage?.url || null,
+      price: priceAmount && priceCurrency ? `${priceCurrency} ${priceAmount}` : null,
+      compareAtPrice:
+        compareAmount && compareCurrency ? `${compareCurrency} ${compareAmount}` : null,
+      url: `/products/${node.handle}`,
+    });
+  }
+
+  return byGid;
 }
 
 function mapVideoItem(video: {
@@ -197,6 +287,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
+  const shopRecord = await prisma.shop.findUnique({
+    where: { id: shop.id },
+    select: { id: true, shopDomain: true, accessToken: true },
+  });
+
+  if (!shopRecord) {
+    return jsonResponse(
+      {
+        items: [],
+        error:
+          "No playlist data was found for this store yet. Open the app in Shopify Admin to finish setup.",
+      },
+      404,
+    );
+  }
+
   // If domain-based resolution failed but a playlist name was requested,
   // resolve shop by unique playlist match across active shops.
   if (!shop && playlistName) {
@@ -267,7 +373,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Return playlist list for the design-mode picker
   if (mode === "list") {
     const playlists = await prisma.playlist.findMany({
-      where: { shopId: shop.id },
+      where: { shopId: shopRecord.id },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     });
@@ -278,17 +384,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Product-tagged source always takes priority
   if (source === "product" && productId) {
-    items = await getProductTaggedVideos(shop.id, productId, limit);
+    items = await getProductTaggedVideos(shopRecord.id, productId, limit);
   }
 
   // If a playlist name was provided, try it next (case-insensitive, regardless of source)
   if (items.length === 0 && playlistName) {
-    items = await getNamedPlaylistVideos(shop.id, playlistName, limit);
+    items = await getNamedPlaylistVideos(shopRecord.id, playlistName, limit);
   }
 
   // Last resort: alphabetically-first playlist
   if (items.length === 0) {
-    items = await getDefaultPlaylistVideos(shop.id, limit);
+    items = await getDefaultPlaylistVideos(shopRecord.id, limit);
   }
 
   // Enrich items with their tagged product IDs (single batch query)
@@ -306,6 +412,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ...item,
       productIds: tagMap.get(item.id) || [],
     }));
+
+    // Attach preview data for first linked product (used by storefront modal UI)
+    const allProductIds = items.flatMap((item) => item.productIds || []);
+    if (shopRecord.accessToken && allProductIds.length > 0) {
+      try {
+        const productPreviewByGid = await fetchProductPreviewMap(
+          shopRecord.shopDomain,
+          shopRecord.accessToken,
+          allProductIds,
+        );
+
+        items = items.map((item) => {
+          const firstId = (item.productIds || [])[0];
+          const firstGid = firstId ? toProductGid(firstId) : "";
+          return {
+            ...item,
+            linkedProduct: firstGid ? productPreviewByGid.get(firstGid) || null : null,
+          };
+        });
+      } catch (error) {
+        console.warn("[proxy.carrousel] failed to fetch linked product previews", error);
+      }
+    }
   }
 
   return jsonResponse({

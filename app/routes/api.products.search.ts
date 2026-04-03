@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { requireShop } from "../utils/requireShop.server";
-import { unauthenticated } from "../shopify.server";
+import prisma from "../db.server";
 
 function normalizeProducts(raw: any[]) {
   return raw.map((node) => ({
@@ -52,45 +52,53 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       query: query ? `${query} status:ACTIVE` : "status:ACTIVE",
     };
 
-    if (!admin) {
-      // authenticate.admin failed on this XHR — use the offline session token
-      // stored in Prisma session storage for the real shop. This is safe because
-      // the shop domain was validated against the DB by requireShop above, and
-      // we explicitly reject the fake dev-shop to prevent cross-tenant leakage.
+    let response: Response;
+    let payload: any;
+
+    if (admin) {
+      response = await admin.graphql(gqlQuery, { variables });
+      payload = await response.json();
+    } else {
       const DEV_PLACEHOLDER = "dev-shop.myshopify.com";
-      if (!shopDomain || shopDomain === DEV_PLACEHOLDER) {
+      let tokenShop =
+        shop && shop.shopDomain !== DEV_PLACEHOLDER && shop.accessToken !== "dev-token"
+          ? shop
+          : null;
+
+      if (!tokenShop) {
+        tokenShop = await prisma.shop.findFirst({
+          where: {
+            uninstalledAt: null,
+            shopDomain: { not: DEV_PLACEHOLDER },
+            NOT: { accessToken: "dev-token" },
+          },
+          orderBy: { updatedAt: "desc" },
+        });
+      }
+
+      if (!tokenShop?.shopDomain || !tokenShop.accessToken) {
         return Response.json(
           {
             products: [],
             error:
-              "Unable to load products: no real Shopify store session found. Open the app inside Shopify Admin to authenticate.",
+              "Unable to load products: no real Shopify store token found. Open the app in Shopify Admin to authenticate.",
           },
           { status: 401 },
         );
       }
-      try {
-        const { admin: offlineAdmin } = await unauthenticated.admin(shopDomain);
-        const response = await offlineAdmin.graphql(gqlQuery, { variables });
-        const payload: any = await response.json();
-        const edges = payload?.data?.products?.edges || [];
-        return Response.json({ products: normalizeProducts(edges.map((e: any) => e.node)) });
-      } catch (offlineError: any) {
-        console.error("[api.products.search] offline session fallback failed", offlineError);
-        return Response.json(
-          {
-            products: [],
-            error:
-              "Unable to load products: the offline session is missing or expired. Reinstall the app in Shopify Admin.",
-          },
-          { status: 401 },
-        );
-      }
+
+      shopDomain = tokenShop.shopDomain;
+      response = await fetch(`https://${shopDomain}/admin/api/2025-07/graphql.json`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": tokenShop.accessToken,
+        },
+        body: JSON.stringify({ query: gqlQuery, variables }),
+      });
+      payload = await response.json();
     }
 
-    const adminClient = admin;
-    const response = await adminClient.graphql(gqlQuery, { variables });
-
-    const payload: any = await response.json();
     if (!response.ok || payload?.errors) {
       console.error("[api.products.search] graphql error", payload?.errors || payload);
       const graphqlMessage = Array.isArray(payload?.errors)

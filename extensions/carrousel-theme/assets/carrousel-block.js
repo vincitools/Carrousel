@@ -20,6 +20,12 @@
     document.body.style.overflow = '';
   }
 
+  function normalizePrice(value) {
+    if (!value) return '';
+    // Payload comes as "USD 305.95" from proxy.
+    return String(value).replace(/^([A-Z]{3})\s+/, '$1 ');
+  }
+
   function openLightbox(item) {
     closeLightbox();
     document.body.style.overflow = 'hidden';
@@ -28,13 +34,27 @@
       ? '<video class="crsl-lb__video" src="' + esc(item.url || '') + '" autoplay loop muted playsinline></video>'
       : '<img class="crsl-lb__video" src="' + esc(item.url || item.thumbnail || '') + '" alt="' + esc(item.title) + '">';
 
-    var productBar = '';
-    if (item.productIds && item.productIds.length > 0) {
-      productBar =
-        '<div class="crsl-lb__product-bar">' +
-          '<span class="crsl-lb__product-label">Produtos relacionados</span>' +
-          '<a class="crsl-lb__shop-btn" href="/collections/all">Shop Now</a>' +
-        '</div>';
+    var linked = item.linkedProduct || null;
+    var productPane = '';
+
+    if (linked) {
+      productPane =
+        '<aside class="crsl-lb__product-pane">' +
+          '<div class="crsl-lb__product-card">' +
+            '<div class="crsl-lb__product-image-wrap">' +
+              '<img class="crsl-lb__product-image" src="' + esc(linked.image || item.thumbnail || '') + '" alt="' + esc(linked.title) + '">' +
+            '</div>' +
+            '<h4 class="crsl-lb__product-title">' + esc(linked.title) + '</h4>' +
+            '<div class="crsl-lb__price-row">' +
+              '<span class="crsl-lb__price">' + esc(normalizePrice(linked.price)) + '</span>' +
+              (linked.compareAtPrice ? '<span class="crsl-lb__compare">' + esc(normalizePrice(linked.compareAtPrice)) + '</span>' : '') +
+            '</div>' +
+            '<div class="crsl-lb__actions">' +
+              '<button type="button" class="crsl-lb__add-btn" data-handle="' + esc(linked.handle) + '">ADD TO CART</button>' +
+              '<a class="crsl-lb__shop-btn" href="' + esc(linked.url || '/collections/all') + '">SHOP NOW</a>' +
+            '</div>' +
+          '</div>' +
+        '</aside>';
     }
 
     _lb = document.createElement('div');
@@ -61,7 +81,7 @@
             '</div>' +
           '</div>' +
         '</div>' +
-        productBar +
+        productPane +
       '</div>';
 
     document.body.appendChild(_lb);
@@ -85,6 +105,38 @@
         vid.muted = isMuted;
         muteBtn.querySelector('.crsl-icon-off').style.display = isMuted ? '' : 'none';
         muteBtn.querySelector('.crsl-icon-on').style.display  = isMuted ? 'none' : '';
+      });
+    }
+
+    var addBtn = _lb.querySelector('.crsl-lb__add-btn');
+    if (addBtn) {
+      addBtn.addEventListener('click', async function () {
+        var handle = addBtn.dataset.handle;
+        if (!handle) return;
+        addBtn.disabled = true;
+        addBtn.textContent = 'ADDING...';
+        try {
+          var productRes = await fetch('/products/' + encodeURIComponent(handle) + '.js');
+          var productData = await productRes.json();
+          var variantId = productData && productData.variants && productData.variants[0] && productData.variants[0].id;
+          if (!variantId) throw new Error('No purchasable variant found');
+
+          var cartRes = await fetch('/cart/add.js', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: variantId, quantity: 1 })
+          });
+          if (!cartRes.ok) throw new Error('Failed to add to cart');
+
+          addBtn.textContent = 'ADDED';
+        } catch (e) {
+          addBtn.textContent = 'TRY AGAIN';
+          setTimeout(function () {
+            addBtn.textContent = 'ADD TO CART';
+            addBtn.disabled = false;
+          }, 1000);
+          return;
+        }
       });
     }
 
