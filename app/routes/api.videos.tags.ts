@@ -69,6 +69,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({ error: "Invalid productIds payload" }, { status: 400 });
     }
 
+    if (productIds.some((id) => id.startsWith("mock://"))) {
+      return Response.json(
+        {
+          error:
+            "Mock products cannot be linked in production. Open the app in Shopify Admin and tag using real store products.",
+        },
+        { status: 400 },
+      );
+    }
+
     const video = await prisma.video.findFirst({
       where: {
         id: videoId,
