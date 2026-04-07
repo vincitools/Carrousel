@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { authenticate } from "../shopify.server";
+import { authenticate, unauthenticated } from "../shopify.server";
 
 type StorefrontItem = {
   id: string;
@@ -42,55 +42,34 @@ function toProductGid(value: string) {
   return numeric ? `gid://shopify/Product/${numeric}` : trimmed;
 }
 
-async function fetchProductPreviewMap(
-  shopDomain: string,
-  accessToken: string,
-  rawProductIds: string[],
-) {
-  const uniqueGids = Array.from(new Set(rawProductIds.map(toProductGid).filter(Boolean)));
-  if (uniqueGids.length === 0) return new Map<string, StorefrontItem["linkedProduct"]>();
-
-  const query = `
-    query ProductPreviews($ids: [ID!]!) {
-      nodes(ids: $ids) {
-        ... on Product {
-          id
-          title
-          handle
-          featuredImage {
-            url
+const PRODUCT_PREVIEW_QUERY = `
+  query ProductPreviews($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      ... on Product {
+        id
+        title
+        handle
+        featuredImage {
+          url
+        }
+        priceRangeV2 {
+          minVariantPrice {
+            amount
+            currencyCode
           }
-          priceRangeV2 {
-            minVariantPrice {
-              amount
-              currencyCode
-            }
-          }
-          compareAtPriceRange {
-            minVariantCompareAtPrice {
-              amount
-              currencyCode
-            }
+        }
+        compareAtPriceRange {
+          minVariantCompareAtPrice {
+            amount
+            currencyCode
           }
         }
       }
     }
-  `;
+  }
+`;
 
-  const response = await fetch(
-    `https://${shopDomain}/admin/api/2025-07/graphql.json`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Access-Token": accessToken,
-      },
-      body: JSON.stringify({ query, variables: { ids: uniqueGids } }),
-    },
-  );
-
-  const payload = (await response.json()) as any;
-  const nodes = Array.isArray(payload?.data?.nodes) ? payload.data.nodes : [];
+function mapProductPreviewNodes(nodes: any[]) {
   const byGid = new Map<string, StorefrontItem["linkedProduct"]>();
 
   for (const node of nodes) {
@@ -113,6 +92,47 @@ async function fetchProductPreviewMap(
   }
 
   return byGid;
+}
+
+async function fetchProductPreviewMap(
+  shopDomain: string,
+  accessToken: string,
+  rawProductIds: string[],
+) {
+  const uniqueGids = Array.from(new Set(rawProductIds.map(toProductGid).filter(Boolean)));
+  if (uniqueGids.length === 0) return new Map<string, StorefrontItem["linkedProduct"]>();
+
+  const response = await fetch(
+    `https://${shopDomain}/admin/api/2025-07/graphql.json`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": accessToken,
+      },
+      body: JSON.stringify({ query: PRODUCT_PREVIEW_QUERY, variables: { ids: uniqueGids } }),
+    },
+  );
+
+  const payload = (await response.json()) as any;
+  const nodes = Array.isArray(payload?.data?.nodes) ? payload.data.nodes : [];
+  return mapProductPreviewNodes(nodes);
+}
+
+async function fetchProductPreviewMapViaSessionAdmin(
+  shopDomain: string,
+  rawProductIds: string[],
+) {
+  const uniqueGids = Array.from(new Set(rawProductIds.map(toProductGid).filter(Boolean)));
+  if (uniqueGids.length === 0) return new Map<string, StorefrontItem["linkedProduct"]>();
+
+  const { admin } = await unauthenticated.admin(shopDomain);
+  const response = await admin.graphql(PRODUCT_PREVIEW_QUERY, {
+    variables: { ids: uniqueGids },
+  });
+  const payload: any = await response.json();
+  const nodes = Array.isArray(payload?.data?.nodes) ? payload.data.nodes : [];
+  return mapProductPreviewNodes(nodes);
 }
 
 function mapVideoItem(video: {
@@ -415,25 +435,41 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     // Attach preview data for first linked product (used by storefront modal UI)
     const allProductIds = items.flatMap((item) => item.productIds || []);
-    if (shopRecord.accessToken && allProductIds.length > 0) {
-      try {
-        const productPreviewByGid = await fetchProductPreviewMap(
-          shopRecord.shopDomain,
-          shopRecord.accessToken,
-          allProductIds,
-        );
+    if (allProductIds.length > 0) {
+      let productPreviewByGid = new Map<string, StorefrontItem["linkedProduct"]>();
 
-        items = items.map((item) => {
-          const firstId = (item.productIds || [])[0];
-          const firstGid = firstId ? toProductGid(firstId) : "";
-          return {
-            ...item,
-            linkedProduct: firstGid ? productPreviewByGid.get(firstGid) || null : null,
-          };
-        });
-      } catch (error) {
-        console.warn("[proxy.carrousel] failed to fetch linked product previews", error);
+      if (shopRecord.accessToken) {
+        try {
+          productPreviewByGid = await fetchProductPreviewMap(
+            shopRecord.shopDomain,
+            shopRecord.accessToken,
+            allProductIds,
+          );
+        } catch (error) {
+          console.warn("[proxy.carrousel] token preview lookup failed", error);
+        }
       }
+
+      // Fallback: use Shopify SDK session-backed admin client.
+      if (productPreviewByGid.size === 0) {
+        try {
+          productPreviewByGid = await fetchProductPreviewMapViaSessionAdmin(
+            shopRecord.shopDomain,
+            allProductIds,
+          );
+        } catch (error) {
+          console.warn("[proxy.carrousel] session admin preview lookup failed", error);
+        }
+      }
+
+      items = items.map((item) => {
+        const firstId = (item.productIds || [])[0];
+        const firstGid = firstId ? toProductGid(firstId) : "";
+        return {
+          ...item,
+          linkedProduct: firstGid ? productPreviewByGid.get(firstGid) || null : null,
+        };
+      });
     }
   }
 
