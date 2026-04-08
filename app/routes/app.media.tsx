@@ -19,6 +19,7 @@ import {
 import { useEffect, useState } from "react";
 import { requireShop } from "../utils/requireShop.server";
 import prisma from "../db.server";
+import { getEmbeddedHeaders } from "../utils/embedded-auth.client";
 
 /* -------------------------------------------------------------------------- */
 /*                                    TYPES                                   */
@@ -197,8 +198,17 @@ function UploadSection({
       return;
     }
     try {
+      const pageShop = new URLSearchParams(window.location.search).get("shop") || "";
+      const uploadUrl = pageShop
+        ? `/api/videos/upload?shop=${encodeURIComponent(pageShop)}`
+        : "/api/videos/upload";
+      const finalizeUrl = pageShop
+        ? `/api/videos/finalize?shop=${encodeURIComponent(pageShop)}`
+        : "/api/videos/finalize";
+      const embeddedHeaders = await getEmbeddedHeaders();
+
       console.log("Fetching upload URL...");
-      const res = await fetch("/api/videos/upload", { method: "POST" });
+      const res = await fetch(uploadUrl, { method: "POST", headers: embeddedHeaders });
       console.log("Upload URL response status:", res.status);
       if (!res.ok) {
         const errorText = await res.text();
@@ -235,8 +245,9 @@ function UploadSection({
 
       // Finalize by sending the result
       console.log("Finalizing upload...");
-      const finalizeRes = await fetch("/api/videos/finalize", {
+      const finalizeRes = await fetch(finalizeUrl, {
         method: "POST",
+        headers: embeddedHeaders,
         body: new URLSearchParams({ result: JSON.stringify(cloudinaryResult) }),
       });
       console.log("Finalize response status:", finalizeRes.status);

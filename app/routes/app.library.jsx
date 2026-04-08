@@ -125,10 +125,27 @@ export default function ContentLibrary() {
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+
+  const withShopParam = (path) => {
+    const resolvedShop = (shopDomain && shopDomain !== "dev-shop.myshopify.com")
+      ? shopDomain
+      : "";
+
+    if (!resolvedShop) {
+      return path;
+    }
+
+    const separator = path.includes("?") ? "&" : "?";
+    return `${path}${separator}shop=${encodeURIComponent(resolvedShop)}`;
+  };
   
   // carregar biblioteca
   const loadMedia = async () => {
-    const result = await xhrRequest({ url: "/api/videos/list", method: "GET", timeoutMs: 12000 });
+    const result = await xhrRequest({
+      url: withShopParam("/api/videos/list"),
+      method: "GET",
+      timeoutMs: 12000,
+    });
     const data = result.payload;
 
     if (result.ok && data?.media) {
@@ -164,9 +181,9 @@ export default function ContentLibrary() {
     setUploading(true);
 
     const mediaType = selectedFile.type.startsWith("image/") ? "image" : "video";
-    const signedUploadEndpoint = `/api/videos/upload?t=${Date.now()}&mediaType=${mediaType}`;
-    const finalizeEndpoint = "/api/videos/finalize";
-    const pingEndpoint = "/api/ping";
+    const signedUploadEndpoint = withShopParam(`/api/videos/upload?t=${Date.now()}&mediaType=${mediaType}`);
+    const finalizeEndpoint = withShopParam("/api/videos/finalize");
+    const pingEndpoint = withShopParam("/api/ping");
     
     console.log("[library] upload start", {
       signedUploadEndpoint,
@@ -288,7 +305,7 @@ export default function ContentLibrary() {
     try {
       const { payload } = await requestJsonWithFallback({
         label: "import url",
-        urls: ["/api/videos/import"],
+        urls: [withShopParam("/api/videos/import")],
         method: "POST",
         body: new URLSearchParams({
           url: remoteUrl.trim(),
@@ -330,7 +347,7 @@ export default function ContentLibrary() {
     try {
       const { payload } = await requestJsonWithFallback({
         label: "delete selected",
-        urls: ["/api/videos/delete"],
+        urls: [withShopParam("/api/videos/delete")],
         method: "POST",
         body: new URLSearchParams({ ids: JSON.stringify(selectedIds) }),
         timeoutMs: 15000,
@@ -355,15 +372,8 @@ export default function ContentLibrary() {
     setProductsLoading(true);
     setTagError("");
     try {
-      // Prefer loader shopDomain; fall back to ?shop= already in the current URL
-      // (Shopify Admin always injects ?shop=xxx.myshopify.com in the iframe URL)
-      const pageShop = new URLSearchParams(window.location.search).get("shop") || "";
-      const resolvedShop = (shopDomain && shopDomain !== "dev-shop.myshopify.com")
-        ? shopDomain
-        : pageShop;
-      const shopParam = resolvedShop ? `&shop=${encodeURIComponent(resolvedShop)}` : "";
       const result = await xhrRequest({
-        url: `/api/products/search?q=${encodeURIComponent(query)}${shopParam}`,
+        url: withShopParam(`/api/products/search?q=${encodeURIComponent(query)}`),
         method: "GET",
         timeoutMs: 15000,
       });
@@ -385,7 +395,7 @@ export default function ContentLibrary() {
   const loadExistingTags = async (mediaId) => {
     try {
       const result = await xhrRequest({
-        url: `/api/videos/tags?videoId=${encodeURIComponent(mediaId)}`,
+        url: withShopParam(`/api/videos/tags?videoId=${encodeURIComponent(mediaId)}`),
         method: "GET",
         timeoutMs: 12000,
       });
@@ -440,7 +450,7 @@ export default function ContentLibrary() {
     try {
       const { payload } = await requestJsonWithFallback({
         label: "save tags",
-        urls: ["/api/videos/tags"],
+        urls: [withShopParam("/api/videos/tags")],
         method: "POST",
         body: new URLSearchParams({
           videoId: taggingItem.id,

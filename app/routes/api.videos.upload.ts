@@ -89,6 +89,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     logUpload(`[${requestId}] signed params generated videoId=${signedUpload.videoId} mediaType=${mediaType}`);
     return Response.json(signedUpload);
   } catch (error) {
+    if (error instanceof Response) {
+      logUpload(`[${requestId}] LOADER AUTH RESPONSE status=${error.status}`);
+      throw error;
+    }
+
     logUpload(`[${requestId}] LOADER ERROR: ${String(error)}`);
     return Response.json({ error: "Failed to generate upload params" }, { status: 500 });
   }
@@ -161,6 +166,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const signedUpload = await buildSignedUpload(shop.id, mediaType);
     return Response.json(signedUpload);
   } catch (error) {
+    if (error instanceof Response) {
+      logUpload(`[${requestId}] ACTION AUTH RESPONSE status=${error.status}`);
+      throw error;
+    }
+
     logUpload(`[${requestId}] UPLOAD ERROR: ${String(error)}`);
     logUpload(`[${requestId}] failed after ${Date.now() - startedAt}ms`);
     return new Response(JSON.stringify({ error: "Failed to generate upload URL" }), {
