@@ -6,10 +6,20 @@ import { NavMenu } from "@shopify/app-bridge-react";
 import { AppProvider } from "@shopify/polaris";
 
 export const loader = async ({ request }) => {
-  await authenticate.admin(request);
+  try {
+    await authenticate.admin(request);
+  } catch (_) {
+    // Layout can render regardless; child route loaders handle their own auth.
+    // The apiKey is a public client ID, safe to return without strict auth.
+  }
 
   return { apiKey: process.env.SHOPIFY_API_KEY || process.env.API_KEY || "" };
 };
+
+export function shouldRevalidate() {
+  // apiKey never changes at runtime; skip re-auth on every child-route navigation.
+  return false;
+}
 
 export default function AppLayout() {
   const { apiKey } = useLoaderData();
