@@ -6,6 +6,15 @@ export async function getEmbeddedHeaders(initialHeaders = {}) {
   }
 
   try {
+    const shop = new URLSearchParams(window.location.search).get("shop");
+    if (shop) {
+      headers.set("x-shopify-shop-domain", shop);
+    }
+  } catch (error) {
+    console.warn("[embedded-auth] failed to resolve shop domain", error);
+  }
+
+  try {
     const tokenPromise = window.shopify?.idToken?.();
     const token = await Promise.race([
       tokenPromise,

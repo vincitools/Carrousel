@@ -58,12 +58,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const query = (url.searchParams.get("q") || "").trim();
   const shopParam = (url.searchParams.get("shop") || "").trim();
 
-  // Also accept the Shopify-injected ?shop= from the embedded app URL
-  // (extracted from Referer or X-Shopify-Shop-Domain header when JS passes it)
+  // Also accept the Shopify shop domain from headers/referer in embedded requests.
   const shopHeader = (request.headers.get("x-shopify-shop-domain") || "").trim();
-  const effectiveShop = (shopParam && shopParam !== DEV_PLACEHOLDER)
-    ? shopParam
-    : (shopHeader && shopHeader !== DEV_PLACEHOLDER ? shopHeader : "");
+  const referer = request.headers.get("referer") || "";
+  let refererShop = "";
+  try {
+    refererShop = new URL(referer).searchParams.get("shop") || "";
+  } catch {
+    refererShop = "";
+  }
+
+  const effectiveShop = [shopParam, shopHeader, refererShop]
+    .map((value) => (value || "").trim())
+    .find((value) => value && value !== DEV_PLACEHOLDER) || "";
 
   const variables = { query: query ? `${query} status:ACTIVE` : "status:ACTIVE" };
 
@@ -115,10 +122,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     const candidates: Array<{ shopDomain: string; accessToken: string; source: string }> = [];
 
-    if (shopParam && shopParam !== DEV_PLACEHOLDER) {
+    if (effectiveShop) {
       const specificShop = await prisma.shop.findFirst({
         where: {
-          shopDomain: shopParam,
+          shopDomain: effectiveShop,
           uninstalledAt: null,
           NOT: { accessToken: "dev-token" },
         },
@@ -133,7 +140,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
 
       const specificSession = await prisma.session.findFirst({
-        where: { shop: shopParam, isOnline: false, accessToken: { not: "" } },
+        where: { shop: effectiveShop, isOnline: false, accessToken: { not: "" } },
         select: { shop: true, accessToken: true },
       });
       if (specificSession?.accessToken) {
