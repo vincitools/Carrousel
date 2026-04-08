@@ -6,12 +6,7 @@ import { NavMenu } from "@shopify/app-bridge-react";
 import { AppProvider } from "@shopify/polaris";
 
 export const loader = async ({ request }) => {
-  const skipAdminAuth =
-    process.env.NODE_ENV !== "production" && process.env.SKIP_ADMIN_AUTH === "true";
-
-  if (!skipAdminAuth) {
-    await authenticate.admin(request);
-  }
+  await authenticate.admin(request);
 
   return { apiKey: process.env.SHOPIFY_API_KEY || process.env.API_KEY || "" };
 };
@@ -21,16 +16,16 @@ export default function AppLayout() {
 
   return (
     <ShopifyAppProvider embedded apiKey={apiKey}>
-      <NavMenu>
-        <a href="/app" rel="home">
-          Dashboard
-        </a>
-        <a href="/app/library">Media</a>
-        <a href="/app/playlists">Playlists</a>
-        <a href="/app/widgets">Widgets</a>
-        <a href="/app/settings">Settings</a>
-      </NavMenu>
       <AppProvider i18n={{}}>
+        <NavMenu>
+          <a href="/app" rel="home">
+            Dashboard
+          </a>
+          <a href="/app/library">Media</a>
+          <a href="/app/playlists">Playlists</a>
+          <a href="/app/widgets">Widgets</a>
+          <a href="/app/settings">Settings</a>
+        </NavMenu>
         <Outlet />
       </AppProvider>
     </ShopifyAppProvider>
