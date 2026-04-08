@@ -1,4 +1,4 @@
-import { Outlet, useLoaderData, useRouteError } from "react-router";
+import { Outlet, useLoaderData, useRouteError, redirect } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-react-router/react";
@@ -6,6 +6,19 @@ import { NavMenu } from "@shopify/app-bridge-react";
 import { AppProvider } from "@shopify/polaris";
 
 export const loader = async ({ request }) => {
+  const requestUrl = new URL(request.url);
+  const requestShop = requestUrl.searchParams.get("shop") || "";
+
+  let refererShop = "";
+  try {
+    const referer = request.headers.get("referer") || "";
+    refererShop = referer ? new URL(referer).searchParams.get("shop") || "" : "";
+  } catch {
+    refererShop = "";
+  }
+
+  const shop = requestShop || refererShop;
+
   try {
     await authenticate.admin(request);
   } catch (error) {
@@ -14,24 +27,21 @@ export const loader = async ({ request }) => {
     if (error instanceof Response && error.status >= 300 && error.status < 400) {
       const location = error.headers.get("Location") || "";
       if (location.startsWith("/auth/login")) {
-        const requestUrl = new URL(request.url);
-        const requestShop = requestUrl.searchParams.get("shop") || "";
-
-        let refererShop = "";
         try {
-          const referer = request.headers.get("referer") || "";
-          refererShop = referer ? new URL(referer).searchParams.get("shop") || "" : "";
-        } catch {
-          refererShop = "";
-        }
-
-        const shop = requestShop || refererShop;
-        if (shop) {
           const loginUrl = new URL(location, requestUrl.origin);
-          if (!loginUrl.searchParams.get("shop")) {
+          if (shop) {
             loginUrl.searchParams.set("shop", shop);
           }
-          throw Response.redirect(loginUrl.pathname + loginUrl.search);
+          if (!loginUrl.searchParams.get("shop")) {
+            console.error("[app.loader] Missing shop for auth login redirect", {
+              requestUrl: requestUrl.toString(),
+              referer: request.headers.get("referer") || "",
+            });
+          }
+          throw redirect(loginUrl.pathname + loginUrl.search);
+        } catch (redirectError) {
+          console.error("[app.loader] Failed building auth redirect URL", redirectError);
+          throw error;
         }
       }
     }
