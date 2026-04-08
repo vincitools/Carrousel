@@ -1,4 +1,4 @@
-import { Outlet, useLoaderData, useRouteError, useLocation } from "react-router";
+import { Outlet, useLoaderData, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-react-router/react";
@@ -17,20 +17,18 @@ export const loader = async ({ request }) => {
 
 export default function AppLayout() {
   const { apiKey } = useLoaderData();
-  const location = useLocation();
-  const search = location.search || "";
 
   return (
     <ShopifyAppProvider embedded apiKey={apiKey}>
       <AppProvider i18n={{}}>
         <NavMenu>
-          <a href={`/app${search}`} rel="home">
+          <a href="/app" rel="home">
             Dashboard
           </a>
-          <a href={`/app/library${search}`}>Media</a>
-          <a href={`/app/playlists${search}`}>Playlists</a>
-          <a href={`/app/widgets${search}`}>Widgets</a>
-          <a href={`/app/settings${search}`}>Settings</a>
+          <a href="/app/library">Media</a>
+          <a href="/app/playlists">Playlists</a>
+          <a href="/app/widgets">Widgets</a>
+          <a href="/app/settings">Settings</a>
         </NavMenu>
         <Outlet />
       </AppProvider>
