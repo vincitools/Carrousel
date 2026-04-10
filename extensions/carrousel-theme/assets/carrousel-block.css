@@ -195,7 +195,7 @@
 .crsl-controls {
   align-items: center;
   display: flex;
-  gap: 14px;
+  gap: 34px;
   justify-content: center;
   padding: 4px 20px 0;
 }
@@ -473,52 +473,3 @@
   }
 }
 
-/* ══ DESIGN-MODE PLAYLIST PICKER ═══════════════════════════════ */
-
-.crsl-dm-picker {
-  align-items: center;
-  background: rgba(15, 15, 15, 0.88);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px 20px 12px;
-}
-
-.crsl-dm-label {
-  color: rgba(255, 255, 255, 0.55);
-  flex: 0 0 100%;
-  font-size: 0.7rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.crsl-dm-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.crsl-dm-pill {
-  appearance: none;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 999px;
-  color: #fff;
-  cursor: pointer;
-  font-size: 0.8rem;
-  padding: 5px 14px;
-  transition: background 0.12s, border-color 0.12s;
-}
-
-.crsl-dm-pill:hover {
-  background: rgba(255, 255, 255, 0.22);
-  border-color: rgba(255, 255, 255, 0.4);
-}
-
-.crsl-dm-pill--active {
-  background: #fff;
-  border-color: #fff;
-  color: #111;
-  font-weight: 600;
-}
