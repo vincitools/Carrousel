@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLoaderData } from "react-router";
-import { Badge, BlockStack, Button, Card, InlineGrid, InlineStack, Page, Tabs, Text } from "@shopify/polaris";
+import { Badge, BlockStack, Button, Card, InlineGrid, InlineStack, Page, Select, Text } from "@shopify/polaris";
 import prisma from "../db.server";
 import { requireShopDev } from "../utils/requireShopDev.server";
 
@@ -41,6 +41,11 @@ export default function SettingsPage() {
   );
 
   const currentPlan = subscription?.status === "ACTIVE" ? subscription.planName || "Pro" : "Free";
+  const buildDate = new Date().toLocaleDateString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
 
   return (
     <Page title="Settings" subtitle="Manage your Vince Shoppable Videos app settings.">
@@ -52,7 +57,36 @@ export default function SettingsPage() {
           </Button>
         </InlineStack>
 
-        <Tabs tabs={tabs} selected={selectedTab} onSelect={setSelectedTab} />
+        <div
+          style={{
+            display: "inline-flex",
+            border: "1px solid #a8a8a8",
+            borderRadius: 8,
+            overflow: "hidden",
+            background: "#d9d9d9",
+          }}
+        >
+          {tabs.map((tab, index) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setSelectedTab(index)}
+              style={{
+                border: "none",
+                borderRight: index < tabs.length - 1 ? "1px solid #a8a8a8" : "none",
+                background: selectedTab === index ? "#bfc2c7" : "#d9d9d9",
+                color: "#111827",
+                fontSize: 18,
+                fontWeight: 500,
+                lineHeight: "24px",
+                padding: "10px 22px",
+                cursor: "pointer",
+              }}
+            >
+              {tab.content}
+            </button>
+          ))}
+        </div>
 
         <Card>
           <InlineStack align="space-between" blockAlign="center">
@@ -166,16 +200,74 @@ export default function SettingsPage() {
         ) : null}
 
         {selectedTab === 2 ? (
-          <Card>
-            <BlockStack gap="200">
-              <Text as="h3" variant="headingMd">
-                About Vince Shoppable Videos
-              </Text>
-              <Text as="p" tone="subdued">
-                Create shoppable video experiences, tag products, and track engagement from your storefront.
-              </Text>
-            </BlockStack>
-          </Card>
+          <BlockStack gap="300">
+            <Card>
+              <BlockStack gap="300">
+                <Text as="h3" variant="headingMd">
+                  App Information
+                </Text>
+                <InlineStack align="space-between">
+                  <Text as="span" variant="bodyMd">
+                    Version
+                  </Text>
+                  <Badge tone="info">1.4.8</Badge>
+                </InlineStack>
+                <InlineStack align="space-between">
+                  <Text as="span" variant="bodyMd">
+                    Build Date
+                  </Text>
+                  <Text as="span" variant="bodyMd">
+                    {buildDate}
+                  </Text>
+                </InlineStack>
+                <InlineStack align="space-between">
+                  <Text as="span" variant="bodyMd">
+                    Environment
+                  </Text>
+                  <Badge tone="success">Production</Badge>
+                </InlineStack>
+              </BlockStack>
+            </Card>
+
+            <Card>
+              <BlockStack gap="300">
+                <Text as="h3" variant="headingMd">
+                  Language
+                </Text>
+                <Text as="p" tone="subdued">
+                  Choose your preferred language for the Vince Shoppable Videos app interface.
+                </Text>
+                <div style={{ maxWidth: 160 }}>
+                  <Select
+                    label="Language"
+                    labelHidden
+                    options={[{ label: "English", value: "en" }]}
+                    value="en"
+                    onChange={() => {}}
+                  />
+                </div>
+              </BlockStack>
+            </Card>
+
+            <Card>
+              <BlockStack gap="300">
+                <Text as="h3" variant="headingMd">
+                  Support & Resources
+                </Text>
+                <BlockStack gap="100">
+                  <a href="#" style={{ color: "#0c66e4", textDecoration: "underline" }}>
+                    Documentation
+                  </a>
+                  <a href="#" style={{ color: "#0c66e4", textDecoration: "underline" }}>
+                    Support
+                  </a>
+                  <a href="#" style={{ color: "#0c66e4", textDecoration: "underline" }}>
+                    Email Support
+                  </a>
+                </BlockStack>
+              </BlockStack>
+            </Card>
+          </BlockStack>
         ) : null}
       </BlockStack>
     </Page>
