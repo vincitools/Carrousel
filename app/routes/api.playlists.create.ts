@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { requireShopDev } from "../utils/requireShopDev.server";
+import { syncPlaylistMetaobjectsForShop } from "../services/playlistMetaobjectSync.server";
 
 async function ensurePlaylistMetaTable() {
   await prisma.$executeRawUnsafe(`
@@ -57,6 +58,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         productTags = excluded.productTags,
         updatedAt = CURRENT_TIMESTAMP
     `;
+
+    await syncPlaylistMetaobjectsForShop(shop.id);
 
     return Response.json({ success: true, playlistId: playlist.id });
   } catch (error) {

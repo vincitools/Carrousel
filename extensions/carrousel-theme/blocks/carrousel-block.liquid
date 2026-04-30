@@ -15,6 +15,11 @@
   if product
     assign resolved_product_id = product.id
   endif
+
+  assign resolved_playlist_handle = blank
+  if block.settings.playlist_metaobject != blank
+    assign resolved_playlist_handle = block.settings.playlist_metaobject.handle
+  endif
 %}
 
 <div
@@ -28,6 +33,7 @@
   data-layout="{{ block.settings.layout }}"
   data-source="{{ block.settings.media_source | escape }}"
   data-playlist="{{ block.settings.playlist_name | escape }}"
+  data-playlist-handle="{{ resolved_playlist_handle | escape }}"
   data-product-id="{{ resolved_product_id }}"
   data-limit="{{ block.settings.media_limit }}"
   class="carrousel-block"
@@ -73,16 +79,23 @@
       "default": "default",
       "options": [
         { "value": "default", "label": "Default playlist" },
-        { "value": "playlist", "label": "Specific playlist name" },
+        { "value": "playlist", "label": "Specific playlist" },
         { "value": "product", "label": "Tagged media for current product" }
       ]
+    },
+    {
+      "type": "metaobject",
+      "id": "playlist_metaobject",
+      "label": "Playlist",
+      "metaobject_type": "vinci_playlist",
+      "info": "Select a playlist created in Vinci Shoppable Videos."
     },
     {
       "type": "text",
       "id": "playlist_name",
       "label": "Playlist name",
       "default": "Default",
-      "info": "Used when Media source is Specific playlist name or as a fallback for product pages."
+      "info": "Legacy fallback. Prefer selecting the Playlist above."
     },
     {
       "type": "range",

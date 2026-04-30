@@ -282,6 +282,31 @@ async function getNamedPlaylistVideos(shopId: string, playlistName: string, limi
   return playlist?.videos.map((entry) => mapVideoItem(entry.video)) || [];
 }
 
+async function getPlaylistVideosById(shopId: string, playlistId: string, limit: number) {
+  const playlist = await prisma.playlist.findFirst({
+    where: { id: playlistId, shopId },
+    include: {
+      videos: {
+        orderBy: { position: "asc" },
+        take: limit,
+        include: {
+          video: {
+            select: {
+              id: true,
+              title: true,
+              type: true,
+              originalUrl: true,
+              thumbnailUrl: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return playlist?.videos.map((entry) => mapVideoItem(entry.video)) || [];
+}
+
 async function getProductTaggedVideos(shopId: string, productId: string, limit: number) {
   const tagged = await prisma.videoProductTag.findMany({
     where: { shopifyProductId: productId, video: { shopId } },
@@ -315,6 +340,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const mode = (url.searchParams.get("mode") || "carousel").trim().toLowerCase();
   const source = (url.searchParams.get("source") || "default").trim().toLowerCase();
   const playlistName = cleanPlaylistName(url.searchParams.get("playlist"));
+  const playlistHandle = cleanPlaylistName(url.searchParams.get("playlistHandle"));
   const productId = (url.searchParams.get("productId") || "").trim();
   const limit = Math.max(1, Math.min(24, Number(url.searchParams.get("limit") || "12")));
 
@@ -477,6 +503,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   // If a playlist name was provided, try it next (case-insensitive, regardless of source)
+  if (items.length === 0 && playlistHandle) {
+    items = await getPlaylistVideosById(shopRecord.id, playlistHandle, limit);
+  }
+
+  // Legacy fallback by name
   if (items.length === 0 && playlistName) {
     items = await getNamedPlaylistVideos(shopRecord.id, playlistName, limit);
   }
@@ -574,7 +605,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return jsonResponse({
     items,
     source,
-    playlist: playlistName || "Default",
+    playlist: playlistHandle || playlistName || "Default",
     productId: productId || null,
   });
 };

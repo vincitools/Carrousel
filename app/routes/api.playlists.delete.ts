@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { requireShopDev } from "../utils/requireShopDev.server";
+import { syncPlaylistMetaobjectsForShop } from "../services/playlistMetaobjectSync.server";
 
 async function ensurePlaylistMetaTable() {
   await prisma.$executeRawUnsafe(`
@@ -45,6 +46,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await prisma.playlistVideo.deleteMany({ where: { playlistId } });
     await prisma.playlist.delete({ where: { id: playlistId } });
     await prisma.$executeRaw`DELETE FROM playlist_meta WHERE playlistId = ${playlistId}`;
+    await syncPlaylistMetaobjectsForShop(shop.id);
 
     return Response.json({ success: true });
   } catch (error) {

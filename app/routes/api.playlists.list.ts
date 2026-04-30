@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { requireShopDev } from "../utils/requireShopDev.server";
+import { syncPlaylistMetaobjectsForShop } from "../services/playlistMetaobjectSync.server";
 
 type PlaylistMetaRow = {
   playlistId: string;
@@ -77,6 +78,7 @@ export const loader = async (_args: LoaderFunctionArgs) => {
     const { shop } = await requireShopDev();
     await ensurePlaylistMetaTable();
     await ensureDefaultPlaylistWithVideos(shop.id);
+    await syncPlaylistMetaobjectsForShop(shop.id);
 
     const playlists = await prisma.playlist.findMany({
       where: { shopId: shop.id },

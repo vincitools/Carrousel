@@ -564,6 +564,7 @@
     var endpoint  = root.dataset.endpoint;
     var source    = root.dataset.source    || 'default';
     var playlist  = root.dataset.playlist  || '';
+    var playlistHandle = root.dataset.playlistHandle || '';
     var productId = root.dataset.productId || '';
     var limit     = root.dataset.limit     || '12';
     var heading   = root.dataset.heading   || '';
@@ -595,6 +596,7 @@
     url.searchParams.set('source', source);
     url.searchParams.set('limit',  limit);
     if (playlist)  url.searchParams.set('playlist',  playlist);
+    if (playlistHandle) url.searchParams.set('playlistHandle', playlistHandle);
     if (productId) url.searchParams.set('productId', productId);
 
     var inEditor = window.Shopify && window.Shopify.designMode;
