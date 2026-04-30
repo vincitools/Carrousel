@@ -26,10 +26,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({ error: "No valid ids provided" }, { status: 400 });
     }
 
-    const result = await prisma.video.deleteMany({
+    const ownedVideos = await prisma.video.findMany({
       where: {
         shopId: shop.id,
         id: { in: validIds },
+      },
+      select: { id: true },
+    });
+
+    const ownedVideoIds = ownedVideos.map((video) => video.id);
+    if (ownedVideoIds.length === 0) {
+      return Response.json({ success: true, deletedCount: 0 });
+    }
+
+    await prisma.$transaction([
+      prisma.playlistVideo.deleteMany({ where: { videoId: { in: ownedVideoIds } } }),
+      prisma.videoProductTag.deleteMany({ where: { videoId: { in: ownedVideoIds } } }),
+      prisma.videoAsset.deleteMany({ where: { videoId: { in: ownedVideoIds } } }),
+      prisma.videoAnalytics.deleteMany({ where: { videoId: { in: ownedVideoIds } } }),
+      prisma.videoInteractionEvent.deleteMany({ where: { videoId: { in: ownedVideoIds } } }),
+    ]);
+
+    const result = await prisma.video.deleteMany({
+      where: {
+        shopId: shop.id,
+        id: { in: ownedVideoIds },
       },
     });
 

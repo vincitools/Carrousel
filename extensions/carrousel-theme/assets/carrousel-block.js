@@ -200,7 +200,7 @@
       var productPane = _lb.querySelector('[data-lightbox-product]');
       var overlayTitle = '<div class="crsl-lb__overlay">' +
           '<div class="crsl-lb__overlay-top">' +
-            '<span class="crsl-lb__title">Powered by Vincitools</span>' +
+            '<span class="crsl-lb__title">Powered by Vinci Shoppable Videos</span>' +
             '<div class="crsl-lb__top-actions">' +
               '<button type="button" class="crsl-lb__btn crsl-lb__mute-btn" aria-label="Toggle sound">' +
                 '<svg class="crsl-icon-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:' + (isMuted ? '' : 'none') + '"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>' +

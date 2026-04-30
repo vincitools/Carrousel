@@ -61,9 +61,9 @@ export default function Index() {
   const [openedStepIndex, setOpenedStepIndex] = useState(0);
   const stepItems = [
     {
-      title: "Install Vince Shoppable Videos",
+      title: "Install Vinci Shoppable Videos",
       description:
-        "Complete the installation process and set up your Vince Shoppable Videos account to start creating engaging content.",
+        "Complete the installation process and set up your Vinci Shoppable Videos account to start creating engaging content.",
       done: onboarding.appInstalled,
       ctaLabel: "Open Settings",
       href: "/app/settings",
@@ -94,7 +94,7 @@ export default function Index() {
   return (
     <Page
       title="Dashboard"
-      subtitle="Welcome to Vince Shoppable Videos"
+      subtitle="Welcome to Vinci Shoppable Videos"
       primaryAction={{ content: "Open Products", url: "shopify://admin/products", target: "_top" }}
       secondaryActions={[{ content: "Open Customers", url: "shopify://admin/customers", target: "_top" }]}
     >
