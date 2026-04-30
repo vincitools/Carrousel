@@ -39,13 +39,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({ success: true, deletedCount: 0 });
     }
 
-    await prisma.$transaction([
+    // Some environments may not have every optional analytics table yet.
+    // Delete dependencies defensively so media deletion still succeeds.
+    const safeDeleteMany = async (label: string, run: () => Promise<unknown>) => {
+      try {
+        await run();
+      } catch (error) {
+        console.warn(`[api.videos.delete] failed to delete dependency: ${label}`, error);
+      }
+    };
+
+    await safeDeleteMany("playlistVideo", () =>
       prisma.playlistVideo.deleteMany({ where: { videoId: { in: ownedVideoIds } } }),
+    );
+    await safeDeleteMany("videoProductTag", () =>
       prisma.videoProductTag.deleteMany({ where: { videoId: { in: ownedVideoIds } } }),
+    );
+    await safeDeleteMany("videoAsset", () =>
       prisma.videoAsset.deleteMany({ where: { videoId: { in: ownedVideoIds } } }),
+    );
+    await safeDeleteMany("videoAnalytics", () =>
       prisma.videoAnalytics.deleteMany({ where: { videoId: { in: ownedVideoIds } } }),
+    );
+    await safeDeleteMany("videoInteractionEvent", () =>
       prisma.videoInteractionEvent.deleteMany({ where: { videoId: { in: ownedVideoIds } } }),
-    ]);
+    );
 
     const result = await prisma.video.deleteMany({
       where: {
@@ -57,6 +75,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return Response.json({ success: true, deletedCount: result.count });
   } catch (error) {
     console.error("[api.videos.delete] delete failed", error);
-    return Response.json({ error: "Failed to delete selected media" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Failed to delete selected media";
+    return Response.json({ error: message || "Failed to delete selected media" }, { status: 500 });
   }
 };
