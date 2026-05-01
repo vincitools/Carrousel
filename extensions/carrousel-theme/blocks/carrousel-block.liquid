@@ -32,7 +32,6 @@
   data-heading-align="{{ block.settings.heading_align }}"
   data-layout="{{ block.settings.layout }}"
   data-source="{{ block.settings.media_source | escape }}"
-  data-playlist="{{ block.settings.playlist_name | escape }}"
   data-playlist-handle="{{ resolved_playlist_handle | escape }}"
   data-product-id="{{ resolved_product_id }}"
   data-limit="{{ block.settings.media_limit }}"
@@ -89,13 +88,6 @@
       "label": "Playlist",
       "metaobject_type": "vinci_playlist",
       "info": "Select a playlist created in Vinci Shoppable Videos."
-    },
-    {
-      "type": "text",
-      "id": "playlist_name",
-      "label": "Playlist name",
-      "default": "Default",
-      "info": "Legacy fallback. Prefer selecting the Playlist above."
     },
     {
       "type": "range",

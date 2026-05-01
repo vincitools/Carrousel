@@ -1,5 +1,5 @@
 {
-  "name": "carrousel-app",
+  "name": "vinci-shoppable-videos",
   "private": true,
   "scripts": {
     "build": "react-router build",

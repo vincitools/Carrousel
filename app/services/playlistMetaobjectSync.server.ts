@@ -212,6 +212,7 @@ export async function syncPlaylistMetaobjectsForShop(shopId: string) {
   const playlists = await prisma.playlist.findMany({
     where: { shopId },
     select: { id: true, name: true },
+    orderBy: { name: "asc" },
   });
 
   try {

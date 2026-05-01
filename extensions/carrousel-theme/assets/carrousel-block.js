@@ -23,7 +23,13 @@
   function normalizePrice(value) {
     if (!value) return '';
     // Payload comes as "USD 305.95" from proxy.
-    return String(value).replace(/^([A-Z]{3})\s+/, '$1 ');
+    var raw = String(value).trim();
+    var match = raw.match(/^([A-Z]{3})\s+(-?\d+(?:\.\d+)?)$/);
+    if (!match) return raw;
+    var currency = match[1];
+    var amount = Number(match[2]);
+    if (Number.isNaN(amount)) return raw;
+    return currency + ' ' + amount.toFixed(2);
   }
 
   function stripHtml(value) {
@@ -332,7 +338,7 @@
   function renderLayout1(root, items, heading) {
     var total = items.length;
     var visibleCount = Math.min(total, 7);
-    var centerSlot = Math.floor(visibleCount / 2);
+    var centerSlot = Math.floor((visibleCount - 1) / 2);
     var currentCenterIndex = 0;
 
     function modulo(value, size) {
@@ -346,6 +352,13 @@
     }
 
     function visibleIndexes() {
+      if (total <= visibleCount) {
+        var staticIndexes = [];
+        for (var i = 0; i < total; i += 1) {
+          staticIndexes.push(i);
+        }
+        return staticIndexes;
+      }
       var indexes = [];
       for (var slot = 0; slot < visibleCount; slot += 1) {
         var offset = slot - centerSlot;
@@ -375,7 +388,10 @@
         : '<img class="crsl-card__media" loading="lazy" src="' +
           esc(item.thumbnail || item.url || '') + '" alt="' + esc(item.title) + '">';
 
-      var classes = 'crsl-card' + (slotIdx === centerSlot ? ' crsl-card--active' : '');
+      var computedCenterSlot = total <= visibleCount
+        ? Math.floor((total - 1) / 2)
+        : centerSlot;
+      var classes = 'crsl-card' + (slotIdx === computedCenterSlot ? ' crsl-card--active' : '');
 
       return (
         '<button type="button" class="' + classes + '" data-real-idx="' + realIdx + '" aria-label="' + esc(item.title) + '">' +
@@ -563,7 +579,6 @@
 
     var endpoint  = root.dataset.endpoint;
     var source    = root.dataset.source    || 'default';
-    var playlist  = root.dataset.playlist  || '';
     var playlistHandle = root.dataset.playlistHandle || '';
     var productId = root.dataset.productId || '';
     var limit     = root.dataset.limit     || '12';
@@ -595,7 +610,6 @@
     var url = new URL(endpoint);
     url.searchParams.set('source', source);
     url.searchParams.set('limit',  limit);
-    if (playlist)  url.searchParams.set('playlist',  playlist);
     if (playlistHandle) url.searchParams.set('playlistHandle', playlistHandle);
     if (productId) url.searchParams.set('productId', productId);
 
