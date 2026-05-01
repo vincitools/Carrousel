@@ -169,6 +169,18 @@
     var isMuted = true;
     var trackedPlayByVideo = Object.create(null);
 
+    function stripLegacySideArtifacts() {
+      if (!_lb) return;
+      var legacyNodes = _lb.querySelectorAll(
+        '.crsl-lb__side-panel, .crsl-lb__side-card, .crsl-lb__side-preview, .crsl-lb__thumbs, .crsl-lb__related, [class*="crsl-lb__side"]'
+      );
+      legacyNodes.forEach(function (node) {
+        if (node && node.parentNode) {
+          node.parentNode.removeChild(node);
+        }
+      });
+    }
+
     function renderMedia(item) {
       return item.type === 'VIDEO'
         ? '<video class="crsl-lb__video" src="' + esc(item.url || '') + '" autoplay loop muted playsinline></video>'
@@ -221,6 +233,7 @@
 
       mediaWrap.innerHTML = renderMedia(item) + overlayTitle;
       productPane.innerHTML = renderProductPane(item).replace(/^(<aside[^>]*>)([\s\S]*)(<\/aside>)$/, '$2');
+      stripLegacySideArtifacts();
 
       if (item.linkedProduct) {
         var descContainer = productPane.querySelector('[data-product-desc]');
@@ -322,6 +335,7 @@
 
     document.addEventListener('keydown', onKey);
     updateLightbox();
+    stripLegacySideArtifacts();
   }
 
   /* ── render strip ── */
