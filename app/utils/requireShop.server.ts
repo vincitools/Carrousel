@@ -5,6 +5,9 @@ import { requireShopDev } from "./requireShopDev.server";
 export async function requireShop(request: Request) {
   try {
     const { session, admin } = await authenticate.admin(request);
+    if (!session.accessToken) {
+      throw new Error("Missing access token on authenticated admin session.");
+    }
 
     const shop = await prisma.shop.upsert({
       where: { shopDomain: session.shop },

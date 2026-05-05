@@ -76,6 +76,9 @@ async function ensureDefaultPlaylistWithVideos(shopId: string) {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     const { session } = await authenticate.admin(request);
+    if (!session.accessToken) {
+      return Response.json({ playlists: [], error: "Missing shop access token" }, { status: 401 });
+    }
     await prisma.shop.upsert({
       where: { shopDomain: session.shop },
       update: { accessToken: session.accessToken, uninstalledAt: null },

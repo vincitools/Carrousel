@@ -1,11 +1,22 @@
 import { useMemo, useState } from "react";
+import type { LoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { Badge, BlockStack, Button, Card, InlineGrid, InlineStack, Page, Select, Tabs, Text } from "@shopify/polaris";
 import prisma from "../db.server";
-import { requireShopDev } from "../utils/requireShopDev.server";
+import { syncBillingSubscriptionForShop, normalizePlanNameFromDb } from "../services/billing.server";
+import { getEmbeddedHeaders } from "../utils/embedded-auth.client";
+import { requireShop } from "../utils/requireShop.server";
 
-export const loader = async () => {
-  const { shop } = await requireShopDev();
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const { shop } = await requireShop(request);
+
+  if (shop.shopDomain && shop.accessToken && shop.accessToken !== "dev-token") {
+    try {
+      await syncBillingSubscriptionForShop(shop.id, shop.shopDomain, shop.accessToken);
+    } catch (error) {
+      console.warn("[app.settings] billing sync failed", error);
+    }
+  }
 
   const [playlistCount, videoCount, settingsCount, subscription] = await Promise.all([
     prisma.playlist.count({ where: { shopId: shop.id } }),
@@ -30,6 +41,7 @@ export const loader = async () => {
 export default function SettingsPage() {
   const { subscription, checklist } = useLoaderData<typeof loader>();
   const [selectedTab, setSelectedTab] = useState(0);
+  const [billingBusy, setBillingBusy] = useState<"" | "premium_monthly" | "premium_yearly" | "refresh">("");
 
   const tabs = useMemo(
     () => [
@@ -40,7 +52,50 @@ export default function SettingsPage() {
     [],
   );
 
-  const currentPlan = subscription?.status === "ACTIVE" ? subscription.planName || "Pro" : "Free";
+  const normalizedPlan = subscription?.status === "ACTIVE" ? normalizePlanNameFromDb(subscription.planName) : "free";
+  const currentPlan = normalizedPlan === "premium_yearly" ? "Premium Yearly" : normalizedPlan === "premium_monthly" ? "Premium Monthly" : "Free";
+
+  const startBilling = async (plan: "premium_monthly" | "premium_yearly") => {
+    if (billingBusy) return;
+    setBillingBusy(plan);
+    try {
+      const headers = await getEmbeddedHeaders();
+      const response = await fetch("/api/billing/subscribe", {
+        method: "POST",
+        headers,
+        body: new URLSearchParams({ plan }),
+      });
+      const payload = (await response.json()) as { confirmationUrl?: string; error?: string };
+      if (!response.ok || !payload?.confirmationUrl) {
+        throw new Error(payload?.error || "Could not start billing checkout.");
+      }
+      if (window.top) {
+        window.top.location.href = payload.confirmationUrl;
+      } else {
+        window.location.href = payload.confirmationUrl;
+      }
+    } catch (error) {
+      console.error("[app.settings] start billing failed", error);
+      alert(error instanceof Error ? error.message : "Could not start billing checkout.");
+    } finally {
+      setBillingBusy("");
+    }
+  };
+
+  const refreshBilling = async () => {
+    if (billingBusy) return;
+    setBillingBusy("refresh");
+    try {
+      const headers = await getEmbeddedHeaders();
+      await fetch("/api/billing/refresh", { method: "POST", headers, body: new URLSearchParams() });
+      window.location.reload();
+    } catch (error) {
+      console.error("[app.settings] refresh billing failed", error);
+      alert("Could not refresh billing status.");
+    } finally {
+      setBillingBusy("");
+    }
+  };
   const buildDate = new Date().toLocaleDateString("en-US", {
     month: "short",
     day: "2-digit",
@@ -70,21 +125,28 @@ export default function SettingsPage() {
               </Text>
             </BlockStack>
             <InlineStack gap="200">
-              <Button>Manage plan</Button>
-              <Button>Refresh status</Button>
+              <Button
+                onClick={() => startBilling("premium_monthly")}
+                disabled={billingBusy !== "" || normalizedPlan === "premium_monthly"}
+              >
+                {normalizedPlan === "premium_monthly" ? "Monthly active" : "Switch to Monthly"}
+              </Button>
+              <Button onClick={refreshBilling} loading={billingBusy === "refresh"} disabled={billingBusy !== ""}>
+                Refresh status
+              </Button>
             </InlineStack>
           </InlineStack>
         </Card>
 
         {selectedTab === 0 ? (
-          <InlineGrid columns={["1fr", "1fr"]} gap="300">
+          <InlineGrid columns={2} gap="300">
             <Card>
               <BlockStack gap="300">
                 <InlineStack align="space-between" blockAlign="center">
                   <Text as="h3" variant="headingMd">
                     Free
                   </Text>
-                  {currentPlan.toLowerCase() === "free" ? <Badge tone="success">Current Plan</Badge> : null}
+                  {normalizedPlan === "free" ? <Badge tone="success">Current Plan</Badge> : null}
                 </InlineStack>
                 <Text as="p" tone="subdued">
                   Use Vinci Shoppable Videos for free.
@@ -103,8 +165,8 @@ export default function SettingsPage() {
                   <Text as="p">Vinci Shoppable Videos watermark</Text>
                   <Text as="p">No analytics</Text>
                 </BlockStack>
-                <Button disabled={currentPlan.toLowerCase() === "free"}>
-                  {currentPlan.toLowerCase() === "free" ? "Current Plan" : "Switch to Free Plan"}
+                <Button disabled={normalizedPlan === "free"}>
+                  {normalizedPlan === "free" ? "Current Plan" : "Switch to Free Plan"}
                 </Button>
               </BlockStack>
             </Card>
@@ -115,17 +177,22 @@ export default function SettingsPage() {
                   <Text as="h3" variant="headingMd">
                     Premium
                   </Text>
-                  {currentPlan.toLowerCase() === "pro" || currentPlan.toLowerCase() === "premium" ? <Badge tone="success">Current Plan</Badge> : null}
+                  {normalizedPlan === "premium_monthly" || normalizedPlan === "premium_yearly" ? (
+                    <Badge tone="success">Current Plan</Badge>
+                  ) : null}
                 </InlineStack>
                 <Text as="p" tone="subdued">
                   Best for growing stores.
                 </Text>
                 <Text as="p" variant="heading2xl">
-                  $19
+                  $12
                   <Text as="span" tone="subdued">
                     {" "}
                     / month
                   </Text>
+                </Text>
+                <Text as="p" tone="subdued">
+                  or $100 / year • 7-day trial
                 </Text>
                 <BlockStack gap="100">
                   <Text as="p">Unlimited video upload</Text>
@@ -135,12 +202,24 @@ export default function SettingsPage() {
                   <Text as="p">Full analytics dashboard</Text>
                   <Text as="p">Priority support</Text>
                 </BlockStack>
-                <Button
-                  variant={currentPlan.toLowerCase() === "pro" || currentPlan.toLowerCase() === "premium" ? "secondary" : "primary"}
-                  disabled={currentPlan.toLowerCase() === "pro" || currentPlan.toLowerCase() === "premium"}
-                >
-                  {currentPlan.toLowerCase() === "pro" || currentPlan.toLowerCase() === "premium" ? "Current Plan" : "Change to Premium Plan"}
-                </Button>
+                <InlineStack gap="200">
+                  <Button
+                    variant={normalizedPlan === "premium_monthly" ? "secondary" : "primary"}
+                    disabled={billingBusy !== "" || normalizedPlan === "premium_monthly"}
+                    loading={billingBusy === "premium_monthly"}
+                    onClick={() => startBilling("premium_monthly")}
+                  >
+                    {normalizedPlan === "premium_monthly" ? "Monthly active" : "Choose Monthly"}
+                  </Button>
+                  <Button
+                    variant={normalizedPlan === "premium_yearly" ? "secondary" : "primary"}
+                    disabled={billingBusy !== "" || normalizedPlan === "premium_yearly"}
+                    loading={billingBusy === "premium_yearly"}
+                    onClick={() => startBilling("premium_yearly")}
+                  >
+                    {normalizedPlan === "premium_yearly" ? "Yearly active" : "Choose Yearly"}
+                  </Button>
+                </InlineStack>
               </BlockStack>
             </Card>
           </InlineGrid>

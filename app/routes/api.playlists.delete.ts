@@ -21,6 +21,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   try {
     const { session } = await authenticate.admin(request);
+    if (!session.accessToken) {
+      return Response.json({ error: "Missing shop access token" }, { status: 401 });
+    }
     await prisma.shop.upsert({
       where: { shopDomain: session.shop },
       update: { accessToken: session.accessToken, uninstalledAt: null },

@@ -1,3 +1,4 @@
+import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { requireShop } from "../utils/requireShop.server";
 
@@ -15,7 +16,7 @@ function isVideoUrl(url?: string | null) {
   return /\.(mp4|mov|webm|m4v|avi|mkv)(\?.*)?$/i.test(url);
 }
 
-export const loader = async ({ request }) => {
+export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { shop } = await requireShop(request);
 
   const videos = await prisma.video.findMany({
