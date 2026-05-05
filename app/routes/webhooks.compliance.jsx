@@ -1,11 +1,38 @@
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 
+function resolveComplianceKind(topic) {
+  const upper = String(topic || "").toUpperCase().replace(/-/g, "_");
+  const lower = String(topic || "").toLowerCase();
+  if (upper.includes("DATA_REQUEST") || lower.includes("data_request")) return "data_request";
+  if (upper.includes("CUSTOMERS_REDACT") || lower.includes("customers/redact")) return "customers_redact";
+  if (upper.includes("SHOP_REDACT") || lower.includes("shop/redact")) return "shop_redact";
+  return "";
+}
+
 export const action = async ({ request }) => {
   const { payload, topic, shop } = await authenticate.webhook(request);
-  const shopDomain = payload?.shop_domain ? String(payload.shop_domain) : shop;
+  const kind = resolveComplianceKind(topic);
 
-  console.log(`[webhooks.shop.redact] Received ${topic} for ${shopDomain}`);
+  if (!kind) {
+    console.warn("[webhooks.compliance] unknown topic", topic);
+    return new Response(null, { status: 200 });
+  }
+
+  if (kind === "data_request") {
+    const customerId = payload?.customer?.id ? String(payload.customer.id) : "unknown";
+    console.log(`[webhooks.compliance] customers/data_request for ${shop} (customer ${customerId})`);
+    return new Response();
+  }
+
+  if (kind === "customers_redact") {
+    const customerId = payload?.customer?.id ? String(payload.customer.id) : "unknown";
+    console.log(`[webhooks.compliance] customers/redact for ${shop} (customer ${customerId})`);
+    return new Response();
+  }
+
+  const shopDomain = payload?.shop_domain ? String(payload.shop_domain) : shop;
+  console.log(`[webhooks.compliance] shop/redact for ${shopDomain}`);
 
   const shopRow = await db.shop.findUnique({
     where: { shopDomain },

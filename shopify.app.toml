@@ -27,6 +27,11 @@ api_version = "2026-04"
   topics = [ "app_subscriptions/update" ]
   uri = "/webhooks/app/subscriptions_update"
 
+  # Mandatory GDPR / privacy webhooks (use compliance_topics — not the same as topics = customers/...)
+  [[webhooks.subscriptions]]
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+  uri = "/webhooks/compliance"
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "read_products,write_products,read_orders,read_themes,write_app_proxy,read_metaobjects,write_metaobjects,read_metaobject_definitions,write_metaobject_definitions"
