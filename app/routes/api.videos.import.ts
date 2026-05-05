@@ -1,4 +1,5 @@
 import { v2 as cloudinary } from "cloudinary";
+import { Readable } from "node:stream";
 import type { ActionFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { buildMediaRecordData } from "../services/media.server";
@@ -70,6 +71,103 @@ function normalizeApifyItems(payload: unknown) {
   return [];
 }
 
+function attachApifyTokenToMediaUrl(mediaUrl: string, token: string) {
+  try {
+    const parsed = new URL(mediaUrl);
+    const isApifyKvsRecord =
+      parsed.hostname.toLowerCase() === "api.apify.com" &&
+      parsed.pathname.includes("/v2/key-value-stores/") &&
+      parsed.pathname.includes("/records/");
+    if (!isApifyKvsRecord) return mediaUrl;
+    if (!parsed.searchParams.has("token")) {
+      parsed.searchParams.set("token", token);
+    }
+    return parsed.toString();
+  } catch {
+    return mediaUrl;
+  }
+}
+
+function isApifyKvsRecordUrl(mediaUrl: string) {
+  try {
+    const parsed = new URL(mediaUrl);
+    return (
+      parsed.hostname.toLowerCase() === "api.apify.com" &&
+      parsed.pathname.includes("/v2/key-value-stores/") &&
+      parsed.pathname.includes("/records/")
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function uploadToCloudinaryFromResolvedUrl(mediaUrl: string) {
+  const resourceType = inferResourceType(mediaUrl);
+  const isApifyProtectedUrl = isApifyKvsRecordUrl(mediaUrl);
+
+  const uploadViaServerStream = async () => {
+    const directResponse = await fetch(mediaUrl, {
+      method: "GET",
+      redirect: "follow",
+      signal: AbortSignal.timeout(300_000),
+    });
+    if (!directResponse.ok) {
+      throw new Error(`Apify media fetch failed (${directResponse.status})`);
+    }
+
+    if (!directResponse.body) {
+      throw new Error("Apify media response had no body.");
+    }
+
+    const incoming = Readable.fromWeb(directResponse.body as any);
+    const streamedUpload = await new Promise<any>((resolve, reject) => {
+      const upload = cloudinary.uploader.upload_stream(
+        {
+          folder: "shopify-videos",
+          resource_type: resourceType,
+        },
+        (uploadError, uploadResult) => {
+          if (uploadError) return reject(uploadError);
+          if (!uploadResult) return reject(new Error("Cloudinary upload returned no result."));
+          resolve(uploadResult);
+        },
+      );
+
+      incoming.on("error", reject);
+      incoming.pipe(upload);
+    });
+
+    return streamedUpload;
+  };
+
+  // Apify KVS record URLs are frequently token-protected and fail as Cloudinary remote fetch.
+  // Upload via backend stream first to avoid 403 loops.
+  if (isApifyProtectedUrl) {
+    return uploadViaServerStream();
+  }
+
+  try {
+    return await cloudinary.uploader.upload(mediaUrl, {
+      folder: "shopify-videos",
+      resource_type: resourceType,
+    });
+  } catch (error) {
+    const raw = error as any;
+    const message =
+      (raw && typeof raw.message === "string" && raw.message) ||
+      (error instanceof Error ? error.message : String(error));
+    const httpCode =
+      (raw && typeof raw.http_code === "number" && raw.http_code) ||
+      (raw && typeof raw.httpCode === "number" && raw.httpCode) ||
+      null;
+    const shouldRetryAsStream =
+      isApifyProtectedUrl &&
+      (httpCode === 400 || /403|forbidden/i.test(message));
+    if (!shouldRetryAsStream) throw error;
+    return uploadViaServerStream();
+  }
+}
+
 /**
  * Resolve Instagram / TikTok page URL to a temporary direct file URL via Apify.
  * Requires APIFY_API_TOKEN. Optional APIFY_VIDEO_IMPORT_ACTOR (default: media-downloader).
@@ -123,8 +221,9 @@ async function resolveSocialUrlViaApify(pageUrl: string): Promise<ResolvedMedia 
     for (const row of items) {
       if (!row || typeof row !== "object") continue;
       const item = row as Record<string, unknown>;
-      const mediaUrl = pickApifyMediaUrl(item);
-      if (!mediaUrl) continue;
+      const mediaUrlRaw = pickApifyMediaUrl(item);
+      if (!mediaUrlRaw) continue;
+      const mediaUrl = attachApifyTokenToMediaUrl(mediaUrlRaw, token);
 
       const titleRaw =
         (typeof item.title === "string" && item.title) ||
@@ -323,10 +422,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const resolved = await resolveSupportedMediaUrl(parsedUrl);
 
-    const result = await cloudinary.uploader.upload(resolved.mediaUrl, {
-      folder: "shopify-videos",
-      resource_type: inferResourceType(resolved.mediaUrl),
-    });
+    const result = await uploadToCloudinaryFromResolvedUrl(resolved.mediaUrl);
 
     const video = await prisma.video.create({
       data: buildMediaRecordData(shop.id, result, resolved.titleHint || null),
