@@ -3,8 +3,8 @@ import type { LoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { Badge, BlockStack, Button, Card, InlineGrid, InlineStack, Page, Select, Tabs, Text } from "@shopify/polaris";
 import prisma from "../db.server";
-import { syncBillingSubscriptionForShop, normalizePlanNameFromDb } from "../services/billing.server";
 import { getEmbeddedHeaders } from "../utils/embedded-auth.client";
+import { normalizePlanNameFromDb } from "../utils/billingPlan";
 import { requireShop } from "../utils/requireShop.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -12,6 +12,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   if (shop.shopDomain && shop.accessToken && shop.accessToken !== "dev-token") {
     try {
+      const { syncBillingSubscriptionForShop } = await import("../services/billing.server");
       await syncBillingSubscriptionForShop(shop.id, shop.shopDomain, shop.accessToken);
     } catch (error) {
       console.warn("[app.settings] billing sync failed", error);
