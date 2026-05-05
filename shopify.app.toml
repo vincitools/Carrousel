@@ -19,13 +19,9 @@ api_version = "2026-04"
   topics = [ "app/scopes_update" ]
   uri = "/webhooks/app/scopes_update"
 
-  [[webhooks.subscriptions]]
-  topics = [ "orders/create" ]
-  uri = "/webhooks/orders/create"
-
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_products,write_products,read_themes,write_app_proxy,read_orders,read_metaobjects,write_metaobjects"
+scopes = "read_products,write_products,read_themes,write_app_proxy,read_metaobjects,write_metaobjects,read_metaobject_definitions,write_metaobject_definitions"
 
 [app_proxy]
 url = "/proxy/carrousel"
@@ -34,3 +30,23 @@ subpath = "carrousel"
 
 [auth]
 redirect_urls = [ "https://carrousel-pu4u.onrender.com/auth/callback" ]
+
+# App-owned definition (type $app:vinci_playlist). Required for the theme editor
+# "Playlist" metaobject picker on app blocks — GraphQL-only definitions often do not register for that UI.
+[metaobjects.app.vinci_playlist]
+name = "Vinci Shoppable Videos Playlists"
+description = "Playlist entries synced from the Vinci Shoppable Videos app for theme blocks."
+display_name_field = "playlist_name"
+access.admin = "merchant_read_write"
+access.storefront = "public_read"
+
+# Order: name first so Content > Metaobjects lists entries by human-readable title when combined with display_name_field.
+[metaobjects.app.vinci_playlist.fields.playlist_name]
+name = "Playlist Name"
+type = "single_line_text_field"
+required = true
+
+[metaobjects.app.vinci_playlist.fields.playlist_id]
+name = "Playlist ID"
+type = "single_line_text_field"
+required = true

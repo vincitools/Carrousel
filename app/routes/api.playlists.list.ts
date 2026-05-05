@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { requireShopDev } from "../utils/requireShopDev.server";
+import { authenticate } from "../shopify.server";
 import { syncPlaylistMetaobjectsForShop } from "../services/playlistMetaobjectSync.server";
 
 type PlaylistMetaRow = {
@@ -73,12 +73,27 @@ async function ensureDefaultPlaylistWithVideos(shopId: string) {
   }
 }
 
-export const loader = async (_args: LoaderFunctionArgs) => {
+export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { shop } = await requireShopDev();
+    const { session } = await authenticate.admin(request);
+    await prisma.shop.upsert({
+      where: { shopDomain: session.shop },
+      update: { accessToken: session.accessToken, uninstalledAt: null },
+      create: { shopDomain: session.shop, accessToken: session.accessToken },
+    });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain: session.shop },
+      select: { id: true },
+    });
+    if (!shop?.id) {
+      return Response.json({ playlists: [], error: "Shop not found" }, { status: 404 });
+    }
     await ensurePlaylistMetaTable();
     await ensureDefaultPlaylistWithVideos(shop.id);
-    await syncPlaylistMetaobjectsForShop(shop.id);
+    await syncPlaylistMetaobjectsForShop(shop.id, {
+      accessToken: session.accessToken,
+      shopDomain: session.shop,
+    });
 
     const playlists = await prisma.playlist.findMany({
       where: { shopId: shop.id },

@@ -18,6 +18,127 @@ type ResolvedMedia = {
   titleHint?: string;
 };
 
+/** Apify actor id as `username/actor-name` (REST path uses `~`). */
+const DEFAULT_APIFY_VIDEO_IMPORT_ACTOR = "rover-omniscraper/media-downloader-actor";
+
+function actorIdToApifyPath(actorId: string) {
+  const trimmed = actorId.trim();
+  if (trimmed.includes("~")) return trimmed;
+  const slash = trimmed.indexOf("/");
+  if (slash === -1) return trimmed;
+  return `${trimmed.slice(0, slash)}~${trimmed.slice(slash + 1)}`;
+}
+
+function pickApifyMediaUrl(item: Record<string, unknown>) {
+  const orderedKeys = [
+    "downloadUrl",
+    "download_url",
+    "videoUrl",
+    "video_url",
+    "fileUrl",
+    "file_url",
+    "mediaUrl",
+    "media_url",
+    "playUrl",
+    "play_url",
+    "mp4",
+    "video",
+  ] as const;
+  for (const key of orderedKeys) {
+    const v = item[key];
+    if (typeof v === "string" && v.startsWith("http")) return v;
+  }
+  const u = item.url;
+  if (typeof u === "string" && u.startsWith("http")) {
+    if (
+      VIDEO_EXTENSION_PATTERN.test(u) ||
+      u.includes("api.apify.com/v2/key-value-stores")
+    ) {
+      return u;
+    }
+  }
+  return "";
+}
+
+function normalizeApifyItems(payload: unknown) {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== "object") return [];
+  const obj = payload as Record<string, unknown>;
+  if (Array.isArray(obj.items)) return obj.items;
+  if (Array.isArray(obj.data)) return obj.data;
+  if (Array.isArray(obj.results)) return obj.results;
+  return [];
+}
+
+/**
+ * Resolve Instagram / TikTok page URL to a temporary direct file URL via Apify.
+ * Requires APIFY_API_TOKEN. Optional APIFY_VIDEO_IMPORT_ACTOR (default: media-downloader).
+ */
+async function resolveSocialUrlViaApify(pageUrl: string): Promise<ResolvedMedia | null> {
+  const token = process.env.APIFY_API_TOKEN?.trim();
+  if (!token) return null;
+
+  const actorId = process.env.APIFY_VIDEO_IMPORT_ACTOR?.trim() || DEFAULT_APIFY_VIDEO_IMPORT_ACTOR;
+  const actPath = actorIdToApifyPath(actorId);
+  const endpoint = `https://api.apify.com/v2/acts/${actPath}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}&clean=true`;
+  const candidateInputs: Array<Record<string, unknown>> = [
+    { url: pageUrl, downloadMode: "auto", concurrency: 1 },
+    { startUrls: [{ url: pageUrl }], downloadMode: "auto", maxItems: 1 },
+    { urls: [pageUrl], downloadMode: "auto", maxItems: 1 },
+  ];
+
+  for (const input of candidateInputs) {
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+        signal: AbortSignal.timeout(300_000),
+      });
+    } catch (e) {
+      console.warn("[api.videos.import] Apify request error", e);
+      continue;
+    }
+
+    const rawText = await response.text();
+    if (!response.ok) {
+      console.warn("[api.videos.import] Apify HTTP", response.status, rawText.slice(0, 400));
+      continue;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(rawText) as unknown;
+    } catch {
+      console.warn("[api.videos.import] Apify response not JSON");
+      continue;
+    }
+
+    const items = normalizeApifyItems(parsed);
+    if (!items.length) {
+      continue;
+    }
+
+    for (const row of items) {
+      if (!row || typeof row !== "object") continue;
+      const item = row as Record<string, unknown>;
+      const mediaUrl = pickApifyMediaUrl(item);
+      if (!mediaUrl) continue;
+
+      const titleRaw =
+        (typeof item.title === "string" && item.title) ||
+        (typeof item.filename === "string" && item.filename) ||
+        "";
+      const titleHint = normalizeTitleHint(titleRaw);
+      return { mediaUrl, titleHint: titleHint || undefined };
+    }
+  }
+
+  console.warn("[api.videos.import] Apify returned no usable media URL");
+  return null;
+}
+
 function decodeEscapedUrl(value: string) {
   const unicodeDecoded = value.replace(/\\u([0-9a-fA-F]{4})/g, (_match, hex) =>
     String.fromCharCode(parseInt(hex, 16)),
@@ -115,6 +236,11 @@ async function resolveSupportedMediaUrl(parsedUrl: URL): Promise<ResolvedMedia> 
     throw new Error("Only Instagram, TikTok, or direct media URLs are supported.");
   }
 
+  const apifyResult = await resolveSocialUrlViaApify(parsedUrl.toString());
+  if (apifyResult?.mediaUrl) {
+    return apifyResult;
+  }
+
   let html = await fetchPageHtml(parsedUrl.toString());
   let titleHint = normalizeTitleHint(
     extractMetaContent(html, "og:title") || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1],
@@ -138,8 +264,11 @@ async function resolveSupportedMediaUrl(parsedUrl: URL): Promise<ResolvedMedia> 
   }
 
   if (!mediaUrl) {
+    const apifyHint = process.env.APIFY_API_TOKEN
+      ? ""
+      : " For Instagram/TikTok, set APIFY_API_TOKEN (Apify) in the app environment for reliable imports.";
     throw new Error(
-      "Could not extract a public media file from this link. Private/restricted posts are not supported.",
+      `Could not extract a public media file from this link. Private/restricted posts are not supported.${apifyHint}`,
     );
   }
 

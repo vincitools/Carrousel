@@ -165,15 +165,6 @@ export default function Index() {
           </BlockStack>
         </Card>
 
-        {progress < 100 ? (
-          <Banner
-            tone="info"
-            title="Finish setup to unlock full analytics"
-            action={{ content: "Go to Settings", url: "/app/settings" }}
-          >
-            <p>Configure your Theme Editor setup and playlists to start tracking engagement and conversions.</p>
-          </Banner>
-        ) : null}
       </BlockStack>
     </Page>
   );

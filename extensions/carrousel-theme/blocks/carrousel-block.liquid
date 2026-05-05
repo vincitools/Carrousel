@@ -17,8 +17,14 @@
   endif
 
   assign resolved_playlist_handle = blank
-  if block.settings.playlist_metaobject != blank
-    assign resolved_playlist_handle = block.settings.playlist_metaobject.handle
+  if block.settings.media_source == 'playlist' and block.settings.playlist_metaobject != blank
+    assign mo = block.settings.playlist_metaobject
+    assign playlist_id_field = mo.playlist_id.value | default: mo.playlist_id
+    if playlist_id_field != blank
+      assign resolved_playlist_handle = playlist_id_field
+    else
+      assign resolved_playlist_handle = mo.handle
+    endif
   endif
 %}
 
@@ -78,8 +84,7 @@
       "default": "default",
       "options": [
         { "value": "default", "label": "Default playlist" },
-        { "value": "playlist", "label": "Specific playlist" },
-        { "value": "product", "label": "Tagged media for current product" }
+        { "value": "playlist", "label": "Specific playlist" }
       ]
     },
     {
@@ -87,7 +92,7 @@
       "id": "playlist_metaobject",
       "label": "Playlist",
       "metaobject_type": "vinci_playlist",
-      "info": "Select a playlist created in Vinci Shoppable Videos."
+      "info": "Choose a playlist from Vinci Shoppable Videos. The playlist type is registered when you deploy the app (`shopify app deploy`). If the picker is disabled, deploy the latest app version, open the app once, then refresh the theme editor."
     },
     {
       "type": "range",

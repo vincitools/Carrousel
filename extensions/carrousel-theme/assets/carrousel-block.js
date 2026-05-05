@@ -214,6 +214,7 @@
 
     function updateLightbox() {
       var item = items[activeIndex];
+      var frame = _lb.querySelector('.crsl-lb__frame');
       var mediaWrap = _lb.querySelector('[data-lightbox-media]');
       var productPane = _lb.querySelector('[data-lightbox-product]');
       var overlayTitle = '<div class="crsl-lb__overlay">' +
@@ -224,7 +225,7 @@
                 '<svg class="crsl-icon-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:' + (isMuted ? '' : 'none') + '"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>' +
                 '<svg class="crsl-icon-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:' + (isMuted ? 'none' : '') + '"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>' +
               '</button>' +
-              '<button type="button" class="crsl-lb__btn crsl-lb__close-btn" aria-label="Fechar">' +
+              '<button type="button" class="crsl-lb__btn crsl-lb__close-btn" aria-label="Close">' +
                 '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
               '</button>' +
             '</div>' +
@@ -233,6 +234,9 @@
 
       mediaWrap.innerHTML = renderMedia(item) + overlayTitle;
       productPane.innerHTML = renderProductPane(item).replace(/^(<aside[^>]*>)([\s\S]*)(<\/aside>)$/, '$2');
+      if (frame) {
+        frame.classList.toggle('crsl-lb__frame--media-only', !item.linkedProduct);
+      }
       stripLegacySideArtifacts();
 
       if (item.linkedProduct) {
@@ -341,18 +345,40 @@
   /* ── render strip ── */
   function renderItems(root, items, heading, layout) {
     if (layout === 'layout2') {
+      root.classList.remove('carrousel-block--fullstrip');
       renderLayout2(root, items, heading);
       return;
     }
 
-    // Layout 1: original centered focus
+    root.classList.remove('carrousel-block--fullstrip');
+    // Layout 1: centered focus, max 6 cards, odd slot count for symmetry (repeat via modulo)
     renderLayout1(root, items, heading);
+  }
+
+  function pickOddVisibleCount(total) {
+    var cap = 6;
+    if (total <= 0) {
+      return 0;
+    }
+    var base = Math.min(cap, total);
+    if (base % 2 === 0) {
+      if (base + 1 <= cap) {
+        base += 1;
+      } else {
+        base = Math.max(1, base - 1);
+      }
+    }
+    return base;
   }
 
   function renderLayout1(root, items, heading) {
     var total = items.length;
-    var visibleCount = Math.min(total, 7);
-    var centerSlot = Math.floor((visibleCount - 1) / 2);
+    if (total < 1) {
+      return;
+    }
+
+    var visibleCount = pickOddVisibleCount(total);
+    var centerSlot = Math.floor(visibleCount / 2);
     var currentCenterIndex = 0;
 
     function modulo(value, size) {
@@ -366,13 +392,6 @@
     }
 
     function visibleIndexes() {
-      if (total <= visibleCount) {
-        var staticIndexes = [];
-        for (var i = 0; i < total; i += 1) {
-          staticIndexes.push(i);
-        }
-        return staticIndexes;
-      }
       var indexes = [];
       for (var slot = 0; slot < visibleCount; slot += 1) {
         var offset = slot - centerSlot;
@@ -396,16 +415,15 @@
         : '';
 
       var mediaHtml = item.type === 'VIDEO'
-        ? '<video class="crsl-card__media" src="' + esc(item.url || '') +
+        ? '<span class="crsl-card__media-wrap">' +
+          '<video class="crsl-card__media" src="' + esc(item.url || '') +
           '" poster="' + esc(item.thumbnail || '') +
-          '" loop muted playsinline preload="metadata"></video>'
-        : '<img class="crsl-card__media" loading="lazy" src="' +
-          esc(item.thumbnail || item.url || '') + '" alt="' + esc(item.title) + '">';
+          '" loop muted playsinline preload="metadata"></video></span>'
+        : '<span class="crsl-card__media-wrap">' +
+          '<img class="crsl-card__media" loading="lazy" src="' +
+          esc(item.thumbnail || item.url || '') + '" alt="' + esc(item.title) + '"></span>';
 
-      var computedCenterSlot = total <= visibleCount
-        ? Math.floor((total - 1) / 2)
-        : centerSlot;
-      var classes = 'crsl-card' + (slotIdx === computedCenterSlot ? ' crsl-card--active' : '');
+      var classes = 'crsl-card' + (slotIdx === centerSlot ? ' crsl-card--active' : '');
 
       return (
         '<button type="button" class="' + classes + '" data-real-idx="' + realIdx + '" aria-label="' + esc(item.title) + '">' +
@@ -444,6 +462,11 @@
     }
 
     function renderFrame(animateDirection) {
+      if (root._crslAnimTimer) {
+        clearTimeout(root._crslAnimTimer);
+        root._crslAnimTimer = null;
+      }
+
       var indexes = visibleIndexes();
       var cards = indexes.map(function (realIdx, slotIdx) {
         return renderCard(items[realIdx], realIdx, slotIdx);
@@ -474,9 +497,12 @@
         });
         root.offsetWidth;
         requestAnimationFrame(function () {
-          cardsEls.forEach(function (card) {
-            card.classList.remove(animClass);
-          });
+          root._crslAnimTimer = setTimeout(function () {
+            root._crslAnimTimer = null;
+            Array.prototype.slice.call(root.querySelectorAll('.crsl-card')).forEach(function (card) {
+              card.classList.remove('crsl-card--anim-next', 'crsl-card--anim-prev');
+            });
+          }, 320);
         });
       }
 
@@ -527,11 +553,13 @@
         : '';
 
       var mediaHtml = item.type === 'VIDEO'
-        ? '<video class="crsl-card__media" src="' + esc(item.url || '') +
+        ? '<span class="crsl-card__media-wrap">' +
+          '<video class="crsl-card__media" src="' + esc(item.url || '') +
           '" poster="' + esc(item.thumbnail || '') +
-          '" loop muted playsinline preload="metadata" autoplay></video>'
-        : '<img class="crsl-card__media" loading="lazy" src="' +
-          esc(item.thumbnail || item.url || '') + '" alt="' + esc(item.title) + '">';
+          '" loop muted playsinline preload="metadata" autoplay></video></span>'
+        : '<span class="crsl-card__media-wrap">' +
+          '<img class="crsl-card__media" loading="lazy" src="' +
+          esc(item.thumbnail || item.url || '') + '" alt="' + esc(item.title) + '"></span>';
 
       return (
         '<button type="button" class="crsl-card crsl-card--layout2" data-real-idx="' + realIdx + '" aria-label="' + esc(item.title) + '">' +

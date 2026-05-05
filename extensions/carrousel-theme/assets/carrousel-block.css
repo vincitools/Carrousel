@@ -4,8 +4,11 @@
 
 /* ── container ── */
 .carrousel-block {
+  --crsl-card-gap: 12px;
   background: var(--carrousel-bg, #f5ede8);
-  overflow: hidden;
+  /* Allow scaled / shadow cards in layout 1 to paint outside without clipping */
+  overflow-x: visible;
+  overflow-y: visible;
   padding: var(--carrousel-pt, 28px) var(--carrousel-px, 24px) var(--carrousel-pb, 32px);
   width: 100%;
   max-width: var(--carrousel-max-width, none);
@@ -28,13 +31,20 @@
 /* ── scroll viewport ── */
 .crsl-viewport {
   overflow: hidden;
-  padding: 12px 0 14px;
+  padding: 12px 12px 14px;
   scroll-behavior: smooth;
   scroll-snap-type: x mandatory;
   scroll-padding-inline: 0;
   scrollbar-width: none;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Layout 1: extra room so scaled active card + product chip are not clipped */
+.crsl-viewport:not(.crsl-viewport--layout2) {
+  overflow-x: visible;
+  overflow-y: visible;
+  padding: 22px 18px 26px;
 }
 
 .crsl-viewport::-webkit-scrollbar {
@@ -44,56 +54,76 @@
 /* ── flex track ── */
 .crsl-track {
   display: flex;
-  gap: 14px;
+  gap: var(--crsl-card-gap);
   justify-content: center;
   width: 100%;
-  padding-inline: 0;
+  padding-inline: 4px;
 }
 
-/* ── card ── */
-.crsl-card {
-  --crsl-shift: 0px;
+/* ── card: shared (both layouts) ── */
+.carrousel-block button.crsl-card {
   appearance: none;
   background: #c7c7c7;
   border: none;
   border-radius: var(--carrousel-radius, 14px);
   cursor: pointer;
   flex: 0 0 auto;
-  overflow: hidden;
   padding: 0;
   position: relative;
   scroll-snap-align: center;
+}
+
+/* ── card (layout 1) ──
+   Theme CSS often resets `button { transform }` — scope + !important keeps focus state visible. */
+.carrousel-block button.crsl-card:not(.crsl-card--layout2) {
+  --crsl-shift: 0px;
+  overflow: visible;
   transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 0.3s ease, opacity 0.3s ease;
   width: 190px;
-  transform: translateX(var(--crsl-shift)) scale(0.86);
+  margin-inline: 0;
+  transform: translateX(var(--crsl-shift)) scale(0.86) !important;
   opacity: 0.72;
+  z-index: 1;
 }
 
-.crsl-card--active {
-  transform: translateX(var(--crsl-shift)) scale(1);
-  opacity: 1;
+.carrousel-block button.crsl-card.crsl-card--active:not(.crsl-card--layout2) {
+  transform: translateX(var(--crsl-shift)) scale(1.08) !important;
+  opacity: 1 !important;
+  z-index: 4;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.22);
 }
 
-.crsl-card:active {
-  transform: translateX(var(--crsl-shift)) scale(0.96);
+.carrousel-block button.crsl-card:active:not(.crsl-card--layout2):not(.crsl-card--active) {
+  transform: translateX(var(--crsl-shift)) scale(0.9) !important;
 }
 
-.crsl-card--anim-next {
+.carrousel-block button.crsl-card.crsl-card--active:active:not(.crsl-card--layout2) {
+  transform: translateX(var(--crsl-shift)) scale(1.02) !important;
+}
+
+.carrousel-block button.crsl-card.crsl-card--anim-next:not(.crsl-card--layout2) {
   --crsl-shift: 20px;
-  opacity: 0.58;
+  opacity: 0.58 !important;
 }
 
-.crsl-card--anim-prev {
+.carrousel-block button.crsl-card.crsl-card--anim-prev:not(.crsl-card--layout2) {
   --crsl-shift: -20px;
-  opacity: 0.58;
+  opacity: 0.58 !important;
+}
+
+.carrousel-block button.crsl-card.crsl-card--anim-next.crsl-card--active:not(.crsl-card--layout2),
+.carrousel-block button.crsl-card.crsl-card--anim-prev.crsl-card--active:not(.crsl-card--layout2) {
+  opacity: 1 !important;
 }
 
 /* Layout 2: all autoplay */
-.crsl-card--layout2 {
-  transform: none;
-  opacity: 1;
+.carrousel-block button.crsl-card.crsl-card--layout2 {
+  overflow: hidden;
+  transform: none !important;
+  opacity: 1 !important;
   width: 160px;
-  margin-right: 12px;
+  margin-right: 0;
+  z-index: 1;
 }
 
 .crsl-viewport--layout2 {
@@ -105,6 +135,7 @@
   scrollbar-width: none;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
+  padding-inline: 0;
 }
 
 .crsl-viewport--layout2::-webkit-scrollbar {
@@ -113,19 +144,15 @@
 
 .crsl-track--layout2 {
   display: flex;
-  gap: 0;
+  gap: var(--crsl-card-gap);
   justify-content: flex-start;
   width: max-content;
   padding-inline: 0;
 }
 
 @media screen and (min-width: 750px) {
-  .crsl-card {
+  .carrousel-block button.crsl-card:not(.crsl-card--layout2) {
     width: 232px;
-  }
-
-  .crsl-card--active {
-    transform: scale(1);
   }
 
   .crsl-viewport {
@@ -136,16 +163,24 @@
     padding-inline: 0;
   }
 
-  .crsl-card--layout2 {
+  .carrousel-block button.crsl-card.crsl-card--layout2 {
     width: 200px;
   }
 }
 
-/* video / image inside card */
-.crsl-card__media {
+/* Clip media to rounded corners (layout 1 keeps overflow:visible on the button for shadows). */
+.crsl-card__media-wrap {
   aspect-ratio: 9 / 16;
+  border-radius: var(--carrousel-radius, 14px);
   display: block;
-  height: auto;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.carrousel-block button.crsl-card .crsl-card__media {
+  display: block;
+  height: 100%;
   object-fit: cover;
   pointer-events: none;
   width: 100%;
@@ -223,6 +258,7 @@
   font-size: 0.98rem;
   font-weight: 700;
   line-height: 1.08;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -376,10 +412,10 @@
   color: #fff;
   font-size: 0.78rem;
   font-weight: 600;
-  max-width: 200px;
-  overflow: hidden;
+  max-width: min(82vw, 520px);
+  overflow: visible;
   padding: 6px 12px;
-  text-overflow: ellipsis;
+  text-overflow: clip;
   white-space: nowrap;
 }
 
@@ -425,6 +461,25 @@
   display: flex;
   flex: 0 0 340px;
   padding: 16px;
+}
+
+.crsl-lb__frame--media-only .crsl-lb__product-pane {
+  display: none;
+}
+
+.crsl-lb__frame--media-only .crsl-lb__media-wrap {
+  aspect-ratio: 9 / 16;
+  max-width: 100%;
+}
+
+.crsl-lb__frame--media-only {
+  max-width: min(92vw, 420px);
+  width: min(92vw, 420px);
+}
+
+.crsl-lb__frame--media-only .crsl-lb__video {
+  height: 100%;
+  max-height: none;
 }
 
 .crsl-lb__product-card {
@@ -546,6 +601,11 @@
 
   .crsl-lb__video {
     height: 92svh;
+  }
+
+  .crsl-lb__frame--media-only {
+    width: min(44vh, 420px);
+    max-width: min(44vh, 420px);
   }
 }
 

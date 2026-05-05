@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { requireShopDev } from "../utils/requireShopDev.server";
+import { requireShop } from "../utils/requireShop.server";
 
 const MAX_ITEMS_PER_PLAYLIST = 10;
 
@@ -17,7 +17,7 @@ function getTitleFromUrl(url: string | null, fallbackId: string) {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
-    const { shop } = await requireShopDev();
+    const { shop } = await requireShop(request);
     const url = new URL(request.url);
     const playlistId = String(url.searchParams.get("playlistId") || "").trim();
 
@@ -80,7 +80,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   try {
-    const { shop } = await requireShopDev();
+    const { shop } = await requireShop(request);
     const formData = await request.formData();
 
     const playlistId = String(formData.get("playlistId") || "").trim();

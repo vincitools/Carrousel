@@ -87,7 +87,7 @@ export default function SettingsPage() {
                   {currentPlan.toLowerCase() === "free" ? <Badge tone="success">Current Plan</Badge> : null}
                 </InlineStack>
                 <Text as="p" tone="subdued">
-                  Use Vince Shoppable Videos for free, forever.
+                  Use Vinci Shoppable Videos for free.
                 </Text>
                 <Text as="p" variant="heading2xl">
                   $0
@@ -97,13 +97,11 @@ export default function SettingsPage() {
                   </Text>
                 </Text>
                 <BlockStack gap="100">
-                  <Text as="p">Unlimited video views</Text>
-                  <Text as="p">Track views, clicks and engagement</Text>
-                  <Text as="p">Add videos from Instagram & TikTok</Text>
-                  <Text as="p">Product tagging</Text>
-                  <Text as="p">Match videos to your store&apos;s design</Text>
-                  <Text as="p">Show up to 10 videos per gallery</Text>
-                  <Text as="p">Live support</Text>
+                  <Text as="p">Unlimited video upload</Text>
+                  <Text as="p">Create up to 1 playlist</Text>
+                  <Text as="p">Up to 5 videos per playlist</Text>
+                  <Text as="p">Vinci Shoppable Videos watermark</Text>
+                  <Text as="p">No analytics</Text>
                 </BlockStack>
                 <Button disabled={currentPlan.toLowerCase() === "free"}>
                   {currentPlan.toLowerCase() === "free" ? "Current Plan" : "Switch to Free Plan"}
@@ -115,12 +113,12 @@ export default function SettingsPage() {
               <BlockStack gap="300">
                 <InlineStack align="space-between" blockAlign="center">
                   <Text as="h3" variant="headingMd">
-                    Pro
+                    Premium
                   </Text>
-                  {currentPlan.toLowerCase() === "pro" ? <Badge tone="success">Current Plan</Badge> : null}
+                  {currentPlan.toLowerCase() === "pro" || currentPlan.toLowerCase() === "premium" ? <Badge tone="success">Current Plan</Badge> : null}
                 </InlineStack>
                 <Text as="p" tone="subdued">
-                  Affordable for everyone.
+                  Best for growing stores.
                 </Text>
                 <Text as="p" variant="heading2xl">
                   $19
@@ -130,16 +128,18 @@ export default function SettingsPage() {
                   </Text>
                 </Text>
                 <BlockStack gap="100">
-                  <Text as="p">Post unlimited videos anywhere</Text>
-                  <Text as="p">Remove Vince Shoppable Videos branding</Text>
-                  <Text as="p">Tag multiple products per video</Text>
-                  <Text as="p">Bulk upload videos</Text>
-                  <Text as="p">Track orders from each video</Text>
-                  <Text as="p">Add up to 50 videos per slider</Text>
-                  <Text as="p">Priority Support</Text>
+                  <Text as="p">Unlimited video upload</Text>
+                  <Text as="p">Unlimited playlists</Text>
+                  <Text as="p">Unlimited videos per playlist</Text>
+                  <Text as="p">No watermark</Text>
+                  <Text as="p">Full analytics dashboard</Text>
+                  <Text as="p">Priority support</Text>
                 </BlockStack>
-                <Button variant={currentPlan.toLowerCase() === "pro" ? "secondary" : "primary"} disabled={currentPlan.toLowerCase() === "pro"}>
-                  {currentPlan.toLowerCase() === "pro" ? "Current Plan" : "Change to Pro Plan"}
+                <Button
+                  variant={currentPlan.toLowerCase() === "pro" || currentPlan.toLowerCase() === "premium" ? "secondary" : "primary"}
+                  disabled={currentPlan.toLowerCase() === "pro" || currentPlan.toLowerCase() === "premium"}
+                >
+                  {currentPlan.toLowerCase() === "pro" || currentPlan.toLowerCase() === "premium" ? "Current Plan" : "Change to Premium Plan"}
                 </Button>
               </BlockStack>
             </Card>

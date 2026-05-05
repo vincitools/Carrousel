@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { requireShopDev } from "../utils/requireShopDev.server";
+import { authenticate } from "../shopify.server";
 import { syncPlaylistMetaobjectsForShop } from "../services/playlistMetaobjectSync.server";
 
 async function ensurePlaylistMetaTable() {
@@ -27,7 +27,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   try {
-    const { shop } = await requireShopDev();
+    const { session } = await authenticate.admin(request);
+    await prisma.shop.upsert({
+      where: { shopDomain: session.shop },
+      update: { accessToken: session.accessToken, uninstalledAt: null },
+      create: { shopDomain: session.shop, accessToken: session.accessToken },
+    });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain: session.shop },
+      select: { id: true },
+    });
+    if (!shop?.id) {
+      return Response.json({ error: "Shop not found" }, { status: 404 });
+    }
     const formData = await request.formData();
 
     const name = String(formData.get("name") || "").trim();
@@ -59,7 +71,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         updatedAt = CURRENT_TIMESTAMP
     `;
 
-    await syncPlaylistMetaobjectsForShop(shop.id);
+    await syncPlaylistMetaobjectsForShop(shop.id, {
+      accessToken: session.accessToken,
+      shopDomain: session.shop,
+    });
 
     return Response.json({ success: true, playlistId: playlist.id });
   } catch (error) {

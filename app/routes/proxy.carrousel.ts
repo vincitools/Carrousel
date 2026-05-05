@@ -502,7 +502,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     items = await getProductTaggedVideos(shopRecord.id, productId, limit);
   }
 
-  // If a playlist name was provided, try it next (case-insensitive, regardless of source)
+  // If a playlist id (or legacy handle) was provided, try it next
   if (items.length === 0 && playlistHandle) {
     items = await getPlaylistVideosById(shopRecord.id, playlistHandle, limit);
   }
@@ -512,7 +512,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     items = await getNamedPlaylistVideos(shopRecord.id, playlistName, limit);
   }
 
-  // Last resort: alphabetically-first playlist
+  // "Specific playlist" without a match should stay empty (do not show the wrong playlist).
+  if (source === "playlist" && items.length === 0) {
+    return jsonResponse({
+      items: [],
+      source,
+      playlist: playlistHandle || playlistName || null,
+      productId: productId || null,
+      error:
+        playlistHandle || playlistName
+          ? "No media in this playlist yet, or the playlist could not be found."
+          : "Choose a playlist in the block settings (Media source: Specific playlist).",
+    });
+  }
+
+  // Default / other sources: last resort is the first alphabetically named playlist
   if (items.length === 0) {
     items = await getDefaultPlaylistVideos(shopRecord.id, limit);
   }
