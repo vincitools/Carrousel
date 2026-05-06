@@ -19,30 +19,42 @@ import prisma from "../db.server";
 import { useI18n } from "../utils/i18n.client";
 
 export const loader = async () => {
-  const { shop } = await requireShopDev();
+  try {
+    const { shop } = await requireShopDev();
 
-  const [videoCount, taggedVideoCount, playlistCount, themeSettingsCount] = await Promise.all([
-    prisma.video.count({ where: { shopId: shop.id } }),
-    prisma.video.count({
-      where: {
-        shopId: shop.id,
-        productTags: {
-          some: {},
+    const [videoCount, taggedVideoCount, playlistCount, themeSettingsCount] = await Promise.all([
+      prisma.video.count({ where: { shopId: shop.id } }),
+      prisma.video.count({
+        where: {
+          shopId: shop.id,
+          productTags: {
+            some: {},
+          },
         },
-      },
-    }),
-    prisma.playlist.count({ where: { shopId: shop.id } }),
-    prisma.themeSettings.count({ where: { shopId: shop.id } }),
-  ]);
+      }),
+      prisma.playlist.count({ where: { shopId: shop.id } }),
+      prisma.themeSettings.count({ where: { shopId: shop.id } }),
+    ]);
 
-  return {
-    onboarding: {
-      appInstalled: true,
-      contentAdded: videoCount > 0 && taggedVideoCount > 0,
-      playlistCreated: playlistCount > 0,
-      playlistEmbedded: themeSettingsCount > 0,
-    },
-  };
+    return {
+      onboarding: {
+        appInstalled: true,
+        contentAdded: videoCount > 0 && taggedVideoCount > 0,
+        playlistCreated: playlistCount > 0,
+        playlistEmbedded: themeSettingsCount > 0,
+      },
+    };
+  } catch (error) {
+    console.warn("[app._index] loader fallback due to error", error);
+    return {
+      onboarding: {
+        appInstalled: true,
+        contentAdded: false,
+        playlistCreated: false,
+        playlistEmbedded: false,
+      },
+    };
+  }
 };
 
 export default function Index() {
