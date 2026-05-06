@@ -5,7 +5,7 @@ import { Badge, BlockStack, Button, Card, InlineGrid, InlineStack, Page, Select,
 import prisma from "../db.server";
 import { getEmbeddedHeaders } from "../utils/embedded-auth.client";
 import { normalizePlanNameFromDb } from "../utils/billingPlan";
-import { useI18n } from "../utils/i18n.client";
+import { useI18n } from "../utils/i18n";
 import { requireShop } from "../utils/requireShop.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {

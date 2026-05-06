@@ -16,7 +16,7 @@ import {
 } from "@shopify/polaris";
 import { normalizePlanNameFromDb } from "../utils/billingPlan";
 import prisma from "../db.server";
-import { useI18n } from "../utils/i18n.client";
+import { useI18n } from "../utils/i18n";
 import { requireShop } from "../utils/requireShop.server";
 
 function getSortValue(row, key) {

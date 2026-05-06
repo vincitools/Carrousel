@@ -6,7 +6,7 @@ import { NavMenu } from "@shopify/app-bridge-react";
 import { AppProvider } from "@shopify/polaris";
 import prisma from "../db.server";
 import { syncPlaylistMetaobjectsForShop } from "../services/playlistMetaobjectSync.server";
-import { I18nProvider, useI18n } from "../utils/i18n.client";
+import { I18nProvider, useI18n } from "../utils/i18n";
 
 export const loader = async ({ request }) => {
   try {
