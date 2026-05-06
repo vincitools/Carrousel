@@ -16,6 +16,7 @@ import {
 } from "@shopify/polaris";
 import { requireShopDev } from "../utils/requireShopDev.server";
 import prisma from "../db.server";
+import { useI18n } from "../utils/i18n.client";
 
 export const loader = async () => {
   const { shop } = await requireShopDev();
@@ -46,6 +47,7 @@ export const loader = async () => {
 
 export default function Index() {
   const { onboarding } = useLoaderData();
+  const { t } = useI18n();
 
   const stepsDone = [
     onboarding.appInstalled,
@@ -61,32 +63,33 @@ export default function Index() {
   const [openedStepIndex, setOpenedStepIndex] = useState(0);
   const stepItems = [
     {
-      title: "Install Vinci Shoppable Videos",
-      description:
+      title: t("Install Vinci Shoppable Videos"),
+      description: t(
         "Complete the installation process and set up your Vinci Shoppable Videos account to start creating engaging content.",
+      ),
       done: onboarding.appInstalled,
-      ctaLabel: "Open Settings",
+      ctaLabel: t("Open Settings"),
       href: "/app/settings",
     },
     {
-      title: "Add Videos and Tag Products",
-      description: "Upload media and connect products to make your content shoppable.",
+      title: t("Add Videos and Tag Products"),
+      description: t("Upload media and connect products to make your content shoppable."),
       done: onboarding.contentAdded,
-      ctaLabel: "Add Content",
+      ctaLabel: t("Add Content"),
       href: "/app/library",
     },
     {
-      title: "Create Your First Playlist",
-      description: "Group your content into playlists for more organized storefront experiences.",
+      title: t("Create Your First Playlist"),
+      description: t("Group your content into playlists for more organized storefront experiences."),
       done: onboarding.playlistCreated,
-      ctaLabel: "Create Playlist",
+      ctaLabel: t("Create Playlist"),
       href: "/app/playlists",
     },
     {
-      title: "Show Playlists on Store Pages",
-      description: "Complete setup in the Theme Editor so playlists appear on your store pages.",
+      title: t("Show Playlists on Store Pages"),
+      description: t("Complete setup in the Theme Editor so playlists appear on your store pages."),
       done: onboarding.playlistEmbedded,
-      ctaLabel: "Open Settings",
+      ctaLabel: t("Open Settings"),
       href: "/app/settings",
     },
   ];
@@ -94,24 +97,24 @@ export default function Index() {
   return (
     <Page
       title="Dashboard"
-      subtitle="Welcome to Vinci Shoppable Videos"
-      primaryAction={{ content: "Open Products", url: "shopify://admin/products", target: "_top" }}
-      secondaryActions={[{ content: "Open Customers", url: "shopify://admin/customers", target: "_top" }]}
+      subtitle={t("Welcome to Vinci Shoppable Videos")}
+      primaryAction={{ content: t("Open Products"), url: "shopify://admin/products", target: "_top" }}
+      secondaryActions={[{ content: t("Open Customers"), url: "shopify://admin/customers", target: "_top" }]}
     >
       <BlockStack gap="400">
         <Card>
           <BlockStack gap="300">
             <InlineStack align="space-between" blockAlign="center">
               <Text as="h2" variant="headingLg">
-                Setup Guide
+                {t("Setup Guide")}
               </Text>
               <Button onClick={() => setSetupExpanded((v) => !v)}>
-                {setupExpanded ? "Collapse" : "Expand"}
+                {setupExpanded ? t("Collapse") : t("Expand")}
               </Button>
             </InlineStack>
 
             <Text as="p" variant="bodyMd" tone="subdued">
-              Complete setup steps to maximize your store&apos;s potential.
+              {t("Complete setup steps to maximize your store's potential.")}
             </Text>
 
             <InlineGrid columns={["2fr", "5fr"]} gap="300">
@@ -131,14 +134,14 @@ export default function Index() {
                         <InlineStack align="space-between" blockAlign="center">
                           <InlineStack gap="200" blockAlign="center">
                             <Box>
-                              {step.done ? <Badge tone="success">Done</Badge> : <Badge tone="attention">Pending</Badge>}
+                              {step.done ? <Badge tone="success">{t("Done")}</Badge> : <Badge tone="attention">{t("Pending")}</Badge>}
                             </Box>
                             <Text as="h3" variant="headingMd">
                               {step.title}
                             </Text>
                           </InlineStack>
                           <Button variant="plain" onClick={() => setOpenedStepIndex(index)}>
-                            {isOpen ? "Hide" : "Show"}
+                            {isOpen ? t("Hide") : t("Show")}
                           </Button>
                         </InlineStack>
 
@@ -150,7 +153,7 @@ export default function Index() {
                             <InlineStack>
                               {index === 0 ? null : (
                                 <Button url={step.href} variant={step.done ? "secondary" : "primary"}>
-                                  {step.done ? "Open" : step.ctaLabel}
+                                  {step.done ? t("Open") : t(step.ctaLabel)}
                                 </Button>
                               )}
                             </InlineStack>

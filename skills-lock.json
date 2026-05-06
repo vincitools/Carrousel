@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "shopify-app-store-review": {
+      "source": "Shopify/shopify-ai-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/shopify-app-store-review/SKILL.md",
+      "computedHash": "b99c7ce3f334dd23c97d34861838870912c681be93fd40073b8af7daa49ce2a6"
+    },
+    "shopify-dev": {
+      "source": "Shopify/shopify-ai-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/shopify-dev/SKILL.md",
+      "computedHash": "4372a3c27e5b557096fda7eb2be452c3a58d1d9b789a1e1be3a6383f47c40faf"
+    },
+    "shopify-payments-apps": {
+      "source": "Shopify/shopify-ai-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/shopify-payments-apps/SKILL.md",
+      "computedHash": "58fa188d08b9281896feb944fef579e540ad09423c40a50e8b56913b15a7351d"
+    }
+  }
+}

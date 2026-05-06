@@ -6,6 +6,7 @@ import { NavMenu } from "@shopify/app-bridge-react";
 import { AppProvider } from "@shopify/polaris";
 import prisma from "../db.server";
 import { syncPlaylistMetaobjectsForShop } from "../services/playlistMetaobjectSync.server";
+import { I18nProvider, useI18n } from "../utils/i18n.client";
 
 export const loader = async ({ request }) => {
   try {
@@ -50,19 +51,28 @@ export default function AppLayout() {
 
   return (
     <ShopifyAppProvider embedded apiKey={apiKey}>
-      <AppProvider i18n={{}}>
-        <NavMenu>
-          <a href="/app" rel="home">
-            Dashboard
-          </a>
-          <a href="/app/analytics">Analytics</a>
-          <a href="/app/library">Media</a>
-          <a href="/app/playlists">Playlists</a>
-          <a href="/app/settings">Settings</a>
-        </NavMenu>
-        <Outlet />
-      </AppProvider>
+      <I18nProvider>
+        <AppShell />
+      </I18nProvider>
     </ShopifyAppProvider>
+  );
+}
+
+function AppShell() {
+  const { t } = useI18n();
+  return (
+    <AppProvider i18n={{}}>
+      <NavMenu>
+        <a href="/app" rel="home">
+          {t("Dashboard")}
+        </a>
+        <a href="/app/analytics">{t("Analytics")}</a>
+        <a href="/app/library">{t("Media")}</a>
+        <a href="/app/playlists">{t("Playlists")}</a>
+        <a href="/app/settings">{t("Settings")}</a>
+      </NavMenu>
+      <Outlet />
+    </AppProvider>
   );
 }
 

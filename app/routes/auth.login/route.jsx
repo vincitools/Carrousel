@@ -1,8 +1,7 @@
-import { useState } from "react";
 import { Form, useActionData, useLoaderData } from "react-router";
 import { login } from "../../shopify.server";
 import { loginErrorMessage } from "./error.server";
-import { AppProvider, Page, Card, FormLayout, TextField, Button, Text, BlockStack } from "@shopify/polaris";
+import { AppProvider, Page, Card, FormLayout, Button, Text, BlockStack, Banner } from "@shopify/polaris";
 
 export const loader = async ({ request }) => {
   const url = new URL(request.url);
@@ -27,8 +26,8 @@ export const action = async ({ request }) => {
 export default function Auth() {
   const loaderData = useLoaderData();
   const actionData = useActionData();
-  const [shop, setShop] = useState(loaderData?.shop || "");
   const { errors } = actionData || loaderData;
+  const shop = loaderData?.shop || "";
 
   return (
     <AppProvider i18n={{}}>
@@ -39,20 +38,15 @@ export default function Auth() {
               <Text variant="headingLg" as="h1">
                 Log in
               </Text>
+              <Banner tone="info">
+                Install and open this app from Shopify Admin. Manual shop-domain entry is not required.
+              </Banner>
               <Form method="post">
                 <FormLayout>
-                  <TextField
-                    label="Shop domain"
-                    name="shop"
-                    placeholder="example.myshopify.com"
-                    helpText="Enter your .myshopify.com domain"
-                    value={shop}
-                    onChange={setShop}
-                    autoComplete="on"
-                    error={errors.shop}
-                  />
+                  <input type="hidden" name="shop" value={shop} />
+                  {errors.shop ? <Banner tone="critical">{errors.shop}</Banner> : null}
                   <Button submit variant="primary" fullWidth>
-                    Log in
+                    Continue with Shopify
                   </Button>
                 </FormLayout>
               </Form>

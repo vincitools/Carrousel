@@ -5,6 +5,7 @@ import { Badge, BlockStack, Button, Card, InlineGrid, InlineStack, Page, Select,
 import prisma from "../db.server";
 import { getEmbeddedHeaders } from "../utils/embedded-auth.client";
 import { normalizePlanNameFromDb } from "../utils/billingPlan";
+import { useI18n } from "../utils/i18n.client";
 import { requireShop } from "../utils/requireShop.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -41,16 +42,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export default function SettingsPage() {
   const { subscription, checklist } = useLoaderData<typeof loader>();
+  const { language, setLanguage, options, t } = useI18n();
   const [selectedTab, setSelectedTab] = useState(0);
   const [billingBusy, setBillingBusy] = useState<"" | "premium_monthly" | "premium_yearly" | "refresh">("");
 
   const tabs = useMemo(
     () => [
-      { id: "plans-pricing", content: "Plans & Pricing", panelID: "plans-pricing-panel" },
-      { id: "widget-settings", content: "Widget Settings", panelID: "widget-settings-panel" },
-      { id: "about", content: "About", panelID: "about-panel" },
+      { id: "plans-pricing", content: t("Plans & Pricing"), panelID: "plans-pricing-panel" },
+      { id: "widget-settings", content: t("Widget Settings"), panelID: "widget-settings-panel" },
+      { id: "about", content: t("About"), panelID: "about-panel" },
     ],
-    [],
+    [t],
   );
 
   const normalizedPlan = subscription?.status === "ACTIVE" ? normalizePlanNameFromDb(subscription.planName) : "free";
@@ -283,18 +285,18 @@ export default function SettingsPage() {
             <Card>
               <BlockStack gap="300">
                 <Text as="h3" variant="headingMd">
-                  Language
+                  {t("Language")}
                 </Text>
                 <Text as="p" tone="subdued">
-                  Choose your preferred language for the Vince Shoppable Videos app interface.
+                  {t("Choose your preferred language for the Vince Shoppable Videos app interface.")}
                 </Text>
                 <div style={{ maxWidth: 160 }}>
                   <Select
-                    label="Language"
+                    label={t("Language")}
                     labelHidden
-                    options={[{ label: "English", value: "en" }]}
-                    value="en"
-                    onChange={() => {}}
+                    options={options}
+                    value={language}
+                    onChange={setLanguage}
                   />
                 </div>
               </BlockStack>

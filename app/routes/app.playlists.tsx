@@ -16,9 +16,11 @@ function containsCarrouselBlock(content: string | undefined) {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   let hasWidgetInstalled = false;
+  let shopDomain = "";
 
   try {
-    const { admin } = await authenticate.admin(request);
+    const { admin, session } = await authenticate.admin(request);
+    shopDomain = session?.shop || "";
     const response = await admin.graphql(`
       query PlaylistThemeCheck {
         themes(first: 20) {
@@ -85,10 +87,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   } catch (error) {
     console.warn("[playlists] failed to evaluate theme block installation", error);
     const { shop } = await requireShopDev();
+    shopDomain = shop?.shopDomain || "";
     hasWidgetInstalled = !!(await Promise.resolve(shop?.id));
   }
 
-  return { hasWidgetInstalled };
+  if (!shopDomain) {
+    const { shop } = await requireShopDev();
+    shopDomain = shop?.shopDomain || "";
+  }
+  const themeEditorUrl = shopDomain
+    ? `https://${shopDomain}/admin/themes/current/editor?context=apps`
+    : "";
+
+  return { hasWidgetInstalled, themeEditorUrl };
 };
 
 type XhrRequestParams = {
@@ -191,7 +202,7 @@ async function requestJsonWithFallback({
 }
 
 export default function PlaylistsPage() {
-  const { hasWidgetInstalled } = useLoaderData<typeof loader>();
+  const { hasWidgetInstalled, themeEditorUrl } = useLoaderData<typeof loader>();
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [openCreateModal, setOpenCreateModal] = useState(false);
@@ -477,8 +488,25 @@ export default function PlaylistsPage() {
         <Card>
           <div style={{ margin: "0 auto", maxWidth: "980px", padding: "8px 12px 24px" }}>
             <div style={{ alignItems: "center", display: "flex", gap: "10px", paddingTop: "4px" }}>
-            <ToolbarButton variant="secondary">How to Add in Theme Editor</ToolbarButton>
+            <ToolbarButton variant="secondary" onClick={() => {
+              if (themeEditorUrl) window.open(themeEditorUrl, "_blank", "noopener,noreferrer");
+            }}>How to Add in Theme Editor</ToolbarButton>
             <ToolbarButton variant="primary" onClick={openCreate}>+ Create Playlist</ToolbarButton>
+          </div>
+
+          <div style={{ marginTop: "12px" }}>
+            <Banner tone="info" title="Theme app extension setup">
+              <p style={{ margin: 0 }}>
+                1) Open Theme Editor, 2) add the <strong>Carrousel</strong> app block, 3) save the theme, and 4) preview your storefront.
+              </p>
+              {themeEditorUrl ? (
+                <p style={{ margin: "8px 0 0" }}>
+                  <a href={themeEditorUrl} target="_blank" rel="noreferrer">
+                    Open Theme Editor
+                  </a>
+                </p>
+              ) : null}
+            </Banner>
           </div>
 
 

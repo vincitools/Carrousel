@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useLoaderData } from "react-router";
 import {
+  Banner,
   Badge,
   BlockStack,
   Box,
@@ -13,8 +14,10 @@ import {
   Select,
   Text,
 } from "@shopify/polaris";
-import { requireShopDev } from "../utils/requireShopDev.server";
+import { normalizePlanNameFromDb } from "../utils/billingPlan";
 import prisma from "../db.server";
+import { useI18n } from "../utils/i18n.client";
+import { requireShop } from "../utils/requireShop.server";
 
 function getSortValue(row, key) {
   if (key === "title" || key === "name") {
@@ -34,10 +37,35 @@ function sortRows(rows, sortState) {
   return sortState.direction === "asc" ? sorted : sorted.reverse();
 }
 
-export const loader = async () => {
-  const { shop } = await requireShopDev();
+export const loader = async ({ request }) => {
+  const { shop } = await requireShop(request);
+  const ORDERS_QUERY = `
+    query RecentOrdersForAnalytics($first: Int!) {
+      orders(first: $first, sortKey: CREATED_AT, reverse: true) {
+        nodes {
+          id
+          cartToken
+          currentTotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+  `;
 
-  const [playlists, videos, interactions] = await Promise.all([
+  if (shop.shopDomain && shop.accessToken && shop.accessToken !== "dev-token") {
+    try {
+      const { syncBillingSubscriptionForShop } = await import("../services/billing.server");
+      await syncBillingSubscriptionForShop(shop.id, shop.shopDomain, shop.accessToken);
+    } catch (error) {
+      console.warn("[analytics] billing sync failed", error);
+    }
+  }
+
+  const [playlists, videos, interactions, subscription] = await Promise.all([
     prisma.playlist.findMany({
       where: { shopId: shop.id },
       select: { id: true, name: true },
@@ -73,23 +101,55 @@ export const loader = async () => {
         take: 5000,
       })
       .catch(() => []),
+    prisma.billingSubscription.findUnique({
+      where: { shopId: shop.id },
+      select: { planName: true, status: true },
+    }),
   ]);
+
+  const normalizedPlan =
+    subscription?.status === "ACTIVE"
+      ? normalizePlanNameFromDb(subscription.planName)
+      : "free";
+  const isPaidPlan = normalizedPlan === "premium_monthly" || normalizedPlan === "premium_yearly";
+
+  if (!isPaidPlan) {
+    return {
+      isPaidPlan: false,
+      currentPlan: "Free",
+    };
+  }
 
   let recentOrders = [];
   if (shop.shopDomain && shop.accessToken) {
     try {
       const ordersResponse = await fetch(
-        `https://${shop.shopDomain}/admin/api/2025-07/orders.json?status=any&limit=250&fields=id,cart_token,current_total_price,currency`,
+        `https://${shop.shopDomain}/admin/api/2025-07/graphql.json`,
         {
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
             "X-Shopify-Access-Token": shop.accessToken,
           },
+          body: JSON.stringify({
+            query: ORDERS_QUERY,
+            variables: { first: 250 },
+          }),
         },
       );
       if (ordersResponse.ok) {
         const payload = await ordersResponse.json();
-        recentOrders = Array.isArray(payload?.orders) ? payload.orders : [];
+        const nodes = Array.isArray(payload?.data?.orders?.nodes)
+          ? payload.data.orders.nodes
+          : [];
+        recentOrders = nodes.map((order) => ({
+          id: order.id,
+          cart_token: order.cartToken || null,
+          current_total_price:
+            order?.currentTotalPriceSet?.shopMoney?.amount || "0",
+          currency:
+            order?.currentTotalPriceSet?.shopMoney?.currencyCode || "USD",
+        }));
       }
     } catch (error) {
       console.warn("[analytics] failed to load shopify orders", error);
@@ -231,6 +291,8 @@ export const loader = async () => {
   });
 
   return {
+    isPaidPlan: true,
+    currentPlan: normalizedPlan === "premium_yearly" ? "Premium Yearly" : "Premium Monthly",
     analytics: {
       currency: recentOrders[0]?.currency || "USD",
       storeAov:
@@ -248,7 +310,32 @@ export const loader = async () => {
 };
 
 export default function AnalyticsPage() {
-  const { analytics } = useLoaderData();
+  const { analytics, isPaidPlan, currentPlan } = useLoaderData();
+  const { t } = useI18n();
+
+  if (!isPaidPlan) {
+    return (
+      <Page title="Analytics" subtitle="Performance insights for Vince Shoppable Videos">
+        <BlockStack gap="400">
+          <Card>
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingLg">
+                {t("Analytics is available on paid plans")}
+              </Text>
+              <Banner tone="warning">
+                You are currently on the {currentPlan} plan. {t("View plans and upgrade")} to access the Analytics dashboard.
+              </Banner>
+              <InlineStack>
+                <Button variant="primary" url="/app/settings">
+                  {t("View plans and upgrade")}
+                </Button>
+              </InlineStack>
+            </BlockStack>
+          </Card>
+        </BlockStack>
+      </Page>
+    );
+  }
 
   const [videoPage, setVideoPage] = useState(1);
   const [videoSort, setVideoSort] = useState({ key: "views", direction: "desc" });
@@ -399,29 +486,29 @@ export default function AnalyticsPage() {
   };
 
   return (
-    <Page title="Analytics" subtitle="Performance insights for Vince Shoppable Videos">
+    <Page title={t("Analytics")} subtitle="Performance insights for Vince Shoppable Videos">
       <BlockStack gap="400">
         <Card>
           <BlockStack gap="400">
             <InlineStack align="space-between" blockAlign="center">
               <Text as="h2" variant="headingLg">
-                Analytics Dashboard
+                {t("Analytics Dashboard")}
               </Text>
-              <Badge tone="info">Live Session View</Badge>
+              <Badge tone="info">{t("Live Session View")}</Badge>
             </InlineStack>
 
             <InlineGrid columns={["1fr", "1fr", "1fr", "1fr"]} gap="300">
-              <Card><BlockStack gap="100"><Text as="p" variant="bodySm" tone="subdued">Total Attributed Revenue</Text><Text as="h3" variant="headingMd">{formatCurrency(analyticsTotals.totalAttributedRevenue)}</Text></BlockStack></Card>
-              <Card><BlockStack gap="100"><Text as="p" variant="bodySm" tone="subdued">Attributed Orders</Text><Text as="h3" variant="headingMd">{analyticsTotals.attributedOrders}</Text></BlockStack></Card>
-              <Card><BlockStack gap="100"><Text as="p" variant="bodySm" tone="subdued">Avg. Order Value (Video)</Text><Text as="h3" variant="headingMd">{formatCurrency(analyticsTotals.aovVideo)}</Text><Text as="p" variant="bodySm" tone={analyticsTotals.aovDelta >= 0 ? "success" : "critical"}>{`${analyticsTotals.aovDelta >= 0 ? "+" : ""}${analyticsTotals.aovDelta.toFixed(1)}% vs store avg`}</Text></BlockStack></Card>
-              <Card><BlockStack gap="100"><Text as="p" variant="bodySm" tone="subdued">Product Conversion Rate</Text><Text as="h3" variant="headingMd">{formatPercent(analyticsTotals.productConversionRate)}</Text></BlockStack></Card>
+              <Card><BlockStack gap="100"><Text as="p" variant="bodySm" tone="subdued">{t("Total Attributed Revenue")}</Text><Text as="h3" variant="headingMd">{formatCurrency(analyticsTotals.totalAttributedRevenue)}</Text></BlockStack></Card>
+              <Card><BlockStack gap="100"><Text as="p" variant="bodySm" tone="subdued">{t("Attributed Orders")}</Text><Text as="h3" variant="headingMd">{analyticsTotals.attributedOrders}</Text></BlockStack></Card>
+              <Card><BlockStack gap="100"><Text as="p" variant="bodySm" tone="subdued">{t("Avg. Order Value (Video)")}</Text><Text as="h3" variant="headingMd">{formatCurrency(analyticsTotals.aovVideo)}</Text><Text as="p" variant="bodySm" tone={analyticsTotals.aovDelta >= 0 ? "success" : "critical"}>{`${analyticsTotals.aovDelta >= 0 ? "+" : ""}${analyticsTotals.aovDelta.toFixed(1)}% vs store avg`}</Text></BlockStack></Card>
+              <Card><BlockStack gap="100"><Text as="p" variant="bodySm" tone="subdued">{t("Product Conversion Rate")}</Text><Text as="h3" variant="headingMd">{formatPercent(analyticsTotals.productConversionRate)}</Text></BlockStack></Card>
             </InlineGrid>
 
             <Divider />
 
             <BlockStack gap="300">
               <InlineStack align="space-between" blockAlign="center">
-                <Text as="h3" variant="headingMd">Videos Performance</Text>
+                <Text as="h3" variant="headingMd">{t("Videos Performance")}</Text>
                 <InlineStack gap="200" blockAlign="center">
                   <Select label="Carousel" labelHidden options={carouselOptions} value={videoCarouselFilter} onChange={(value) => { setVideoCarouselFilter(value); setVideoPage(1); }} />
                   <Button onClick={() => exportCsv(sortedVideos, "vinci-videos", [
@@ -481,12 +568,12 @@ export default function AnalyticsPage() {
 
             <BlockStack gap="300">
               <InlineStack align="space-between" blockAlign="center">
-                <Text as="h3" variant="headingMd">Top Products by Revenue</Text>
-                <Button onClick={() => setShowAllTopProducts((value) => !value)}>{showAllTopProducts ? "Show Top 10" : "Expand"}</Button>
+                <Text as="h3" variant="headingMd">{t("Top Products by Revenue")}</Text>
+                <Button onClick={() => setShowAllTopProducts((value) => !value)}>{showAllTopProducts ? t("Show Top 10") : t("Expand")}</Button>
               </InlineStack>
               <BlockStack gap="200">
                 {topProductsByRevenue.length === 0 ? (
-                  <Text as="p" variant="bodyMd" tone="subdued">No product data available for the selected filters.</Text>
+                  <Text as="p" variant="bodyMd" tone="subdued">{t("No product data available for the selected filters.")}</Text>
                 ) : (
                   topProductsByRevenue.map((product) => {
                     const maxRevenue = topProductsByRevenue[0]?.revenue || 1;
@@ -508,7 +595,7 @@ export default function AnalyticsPage() {
 
             <BlockStack gap="300">
               <InlineStack align="space-between" blockAlign="center">
-                <Text as="h3" variant="headingMd">Products Performance</Text>
+                <Text as="h3" variant="headingMd">{t("Products Performance")}</Text>
                 <InlineStack gap="200">
                   <Select label="Carousel" labelHidden options={carouselOptions} value={productCarouselFilter} onChange={(value) => { setProductCarouselFilter(value); setProductVideoFilter("all"); }} />
                   <Select label="Video" labelHidden options={productVideoOptions} value={productVideoFilter} onChange={setProductVideoFilter} />

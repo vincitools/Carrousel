@@ -43,11 +43,6 @@ function toProductGid(value: string) {
   return numeric ? `gid://shopify/Product/${numeric}` : trimmed;
 }
 
-function toProductNumericId(value: string) {
-  const match = (value || "").trim().match(/(\d+)/);
-  return match?.[1] || "";
-}
-
 const PRODUCT_PREVIEW_QUERY = `
   query ProductPreviews($ids: [ID!]!) {
     nodes(ids: $ids) {
@@ -141,67 +136,6 @@ async function fetchProductPreviewMapViaSessionAdmin(
   const payload: any = await response.json();
   const nodes = Array.isArray(payload?.data?.nodes) ? payload.data.nodes : [];
   return mapProductPreviewNodes(nodes);
-}
-
-async function fetchProductPreviewMapViaRest(
-  shopDomain: string,
-  accessToken: string,
-  rawProductIds: string[],
-) {
-  const numericIds = Array.from(
-    new Set(rawProductIds.map(toProductNumericId).filter(Boolean)),
-  );
-  const byGid = new Map<string, StorefrontItem["linkedProduct"]>();
-  if (numericIds.length === 0) return byGid;
-
-  const results = await Promise.allSettled(
-    numericIds.map(async (id) => {
-      const response = await fetch(
-        `https://${shopDomain}/admin/api/2025-07/products/${id}.json`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "X-Shopify-Access-Token": accessToken,
-          },
-        },
-      );
-
-      if (!response.ok) return null;
-      const payload: any = await response.json();
-      const product = payload?.product;
-      if (!product?.id || !product?.handle) return null;
-
-      const firstVariant = Array.isArray(product.variants) ? product.variants[0] : null;
-      const price = firstVariant?.price ? String(firstVariant.price) : null;
-      const compareAtPrice = firstVariant?.compare_at_price
-        ? String(firstVariant.compare_at_price)
-        : null;
-
-      return {
-        gid: `gid://shopify/Product/${product.id}`,
-        linkedProduct: {
-          id: `gid://shopify/Product/${product.id}`,
-          title: product.title || "Product",
-          handle: product.handle,
-          image: product?.image?.src || null,
-          price,
-          compareAtPrice,
-          description: product?.body_html
-            ? String(product.body_html).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
-            : null,
-          url: `/products/${product.handle}`,
-        } as NonNullable<StorefrontItem["linkedProduct"]>,
-      };
-    }),
-  );
-
-  for (const result of results) {
-    if (result.status === "fulfilled" && result.value?.gid && result.value?.linkedProduct) {
-      byGid.set(result.value.gid, result.value.linkedProduct);
-    }
-  }
-
-  return byGid;
 }
 
 function mapVideoItem(video: {
@@ -573,28 +507,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           );
         } catch (error) {
           console.warn("[proxy.carrousel] session admin preview lookup failed", error);
-        }
-      }
-
-      // Last fallback: direct Admin REST by numeric product ID.
-      const unresolvedBeforeRest = Array.from(
-        new Set(allProductIds.map(toProductGid).filter(Boolean)),
-      ).filter((gid) => !productPreviewByGid.has(gid));
-
-      if (unresolvedBeforeRest.length > 0 && shopRecord.accessToken) {
-        try {
-          const restPreviewByGid = await fetchProductPreviewMapViaRest(
-            shopRecord.shopDomain,
-            shopRecord.accessToken,
-            unresolvedBeforeRest,
-          );
-          for (const [gid, preview] of restPreviewByGid.entries()) {
-            if (!productPreviewByGid.has(gid)) {
-              productPreviewByGid.set(gid, preview);
-            }
-          }
-        } catch (error) {
-          console.warn("[proxy.carrousel] rest preview lookup failed", error);
         }
       }
 
