@@ -54,7 +54,6 @@ const EXACT_TRANSLATIONS = {
     "Open Customers": "Abrir clientes",
     "Setup Guide": "Guia de configuração",
     Collapse: "Recolher",
-    Expand: "Expandir",
     "Complete setup steps to maximize your store's potential.":
       "Conclua as etapas para maximizar o potencial da sua loja.",
     Done: "Concluído",
@@ -84,8 +83,7 @@ const EXACT_TRANSLATIONS = {
     "Delete Items": "Excluir itens",
     "Import URL": "Importar URL",
     "Upload Media": "Enviar mídia",
-    "All Videos": "Todos os vídeos",
-    "All Carousels": "Todos os carrosséis",
+    
     "Widget controls are now managed directly in the Theme Editor.":
       "Os controles do widget agora são gerenciados diretamente no Editor de Tema.",
     "App Information": "Informações do aplicativo",
@@ -101,7 +99,7 @@ const EXACT_TRANSLATIONS = {
     "Use Vinci Shoppable Videos for free.":
       "Use o Vinci Shoppable Videos gratuitamente.",
     "Best for growing stores.": "Ideal para lojas em crescimento.",
-    "Current Plan": "Plano atual",
+    
     "Switch to Monthly": "Mudar para mensal",
     "Switch to Free Plan": "Mudar para plano grátis",
     "Choose Monthly": "Escolher mensal",
@@ -115,7 +113,7 @@ const EXACT_TRANSLATIONS = {
     "Unlimited playlists": "Playlists ilimitadas",
     "Unlimited videos per playlist": "Vídeos ilimitados por playlist",
     "No watermark": "Sem marca d'água",
-    "Widget Settings": "Configurações do widget",
+    
     "Media uploaded": "Mídia enviada",
     "Upload media": "Enviar mídia",
     "Playlist created": "Playlist criada",
@@ -179,7 +177,6 @@ const EXACT_TRANSLATIONS = {
     "Open Customers": "Abrir clientes",
     "Setup Guide": "Guía de configuración",
     Collapse: "Colapsar",
-    Expand: "Expandir",
     "Complete setup steps to maximize your store's potential.":
       "Completa los pasos para maximizar el potencial de tu tienda.",
     Done: "Listo",

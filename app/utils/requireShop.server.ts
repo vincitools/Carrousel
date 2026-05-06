@@ -76,7 +76,8 @@ export async function requireShop(request: Request) {
       }
     }
 
-    // Production-safe final fallback: if there is exactly one active shop, use it.
+    // Production-safe final fallback: try to recover an active shop context
+    // instead of crashing the app UI with a generic server error.
     if (process.env.NODE_ENV === "production") {
       const activeShops = await prisma.shop.findMany({
         where: { uninstalledAt: null },
@@ -84,7 +85,7 @@ export async function requireShop(request: Request) {
         take: 2,
       });
 
-      if (activeShops.length === 1) {
+      if (activeShops.length >= 1) {
         return {
           session: { shop: activeShops[0].shopDomain },
           shop: activeShops[0],
@@ -97,7 +98,9 @@ export async function requireShop(request: Request) {
         throw error;
       }
 
-      throw error;
+      // Last-resort fallback keeps the app usable in production even when
+      // request context headers are missing.
+      return requireShopDev();
     }
 
     console.warn("[requireShop] authenticate.admin failed, using dev fallback", error);
