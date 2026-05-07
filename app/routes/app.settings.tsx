@@ -10,6 +10,7 @@ import { requireShop } from "../utils/requireShop.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { shop } = await requireShop(request);
+  const forcePremiumForDev = shop.accessToken === "dev-token";
 
   if (shop.shopDomain && shop.accessToken && shop.accessToken !== "dev-token") {
     try {
@@ -32,6 +33,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return {
     subscription,
+    forcePremiumForDev,
     checklist: {
       hasMedia: videoCount > 0,
       hasPlaylists: playlistCount > 0,
@@ -41,10 +43,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export default function SettingsPage() {
-  const { subscription, checklist } = useLoaderData<typeof loader>();
+  const { subscription, checklist, forcePremiumForDev } = useLoaderData<typeof loader>();
   const { language, setLanguage, options, t } = useI18n();
   const [selectedTab, setSelectedTab] = useState(0);
-  const [billingBusy, setBillingBusy] = useState<"" | "premium_monthly" | "premium_yearly" | "refresh">("");
+  const [billingBusy, setBillingBusy] = useState<
+    "" | "premium_monthly" | "premium_yearly" | "refresh" | "cancel"
+  >("");
 
   const tabs = useMemo(
     () => [
@@ -55,7 +59,11 @@ export default function SettingsPage() {
     [t],
   );
 
-  const normalizedPlan = subscription?.status === "ACTIVE" ? normalizePlanNameFromDb(subscription.planName) : "free";
+  const normalizedPlan = forcePremiumForDev
+    ? "premium_yearly"
+    : subscription?.status === "ACTIVE"
+      ? normalizePlanNameFromDb(subscription.planName)
+      : "free";
   const currentPlan = normalizedPlan === "premium_yearly" ? "Premium Yearly" : normalizedPlan === "premium_monthly" ? "Premium Monthly" : "Free";
 
   const startBilling = async (plan: "premium_monthly" | "premium_yearly") => {
@@ -95,6 +103,36 @@ export default function SettingsPage() {
     } catch (error) {
       console.error("[app.settings] refresh billing failed", error);
       alert("Could not refresh billing status.");
+    } finally {
+      setBillingBusy("");
+    }
+  };
+
+  const cancelBilling = async () => {
+    if (billingBusy || normalizedPlan === "free") return;
+    const confirmed = window.confirm(
+      t(
+        "Are you sure you want to cancel your Premium subscription? Billing changes follow Shopify subscription rules.",
+      ),
+    );
+    if (!confirmed) return;
+
+    setBillingBusy("cancel");
+    try {
+      const headers = await getEmbeddedHeaders();
+      const response = await fetch("/api/billing/cancel", {
+        method: "POST",
+        headers,
+        body: new URLSearchParams(),
+      });
+      const payload = (await response.json()) as { error?: string; cancelled?: boolean };
+      if (!response.ok) {
+        throw new Error(payload?.error || t("Could not cancel subscription."));
+      }
+      window.location.reload();
+    } catch (error) {
+      console.error("[app.settings] cancel billing failed", error);
+      alert(error instanceof Error ? error.message : t("Could not cancel subscription."));
     } finally {
       setBillingBusy("");
     }
@@ -168,8 +206,12 @@ export default function SettingsPage() {
                   <Text as="p">Vinci Shoppable Videos watermark</Text>
                   <Text as="p">No analytics</Text>
                 </BlockStack>
-                <Button disabled={normalizedPlan === "free"}>
-                  {normalizedPlan === "free" ? "Current Plan" : "Switch to Free Plan"}
+                <Button
+                  disabled={normalizedPlan === "free" || billingBusy !== ""}
+                  loading={billingBusy === "cancel"}
+                  onClick={cancelBilling}
+                >
+                  {normalizedPlan === "free" ? "Current Plan" : t("Switch to Free Plan")}
                 </Button>
               </BlockStack>
             </Card>

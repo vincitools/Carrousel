@@ -90,6 +90,21 @@ const CURRENT_SUBSCRIPTIONS_QUERY = `
   }
 `;
 
+const APP_SUBSCRIPTION_CANCEL_MUTATION = `
+  mutation AppSubscriptionCancel($id: ID!, $prorate: Boolean) {
+    appSubscriptionCancel(id: $id, prorate: $prorate) {
+      appSubscription {
+        id
+        status
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const APP_SUBSCRIPTION_CREATE_MUTATION = `
   mutation AppSubscriptionCreate(
     $name: String!
@@ -195,6 +210,42 @@ export async function syncBillingSubscriptionForShop(shopId: string, shopDomain:
   });
 
   return record;
+}
+
+/**
+ * Cancels the shop's active recurring app subscription via Shopify Billing.
+ * Then syncs local DB from Shopify.
+ */
+export async function cancelBillingSubscriptionForShop(shopId: string, shopDomain: string, accessToken: string) {
+  const activeSubs = await getActiveSubscriptions(shopDomain, accessToken);
+  const active =
+    activeSubs.find((sub) => String(sub.status || "").toUpperCase() === "ACTIVE") || activeSubs[0] || null;
+
+  if (!active) {
+    await prisma.billingSubscription.deleteMany({ where: { shopId } });
+    return { cancelled: false as const, reason: "no_active_subscription" as const };
+  }
+
+  const result = await shopifyGraphql<{
+    data?: {
+      appSubscriptionCancel?: {
+        userErrors?: Array<{ message: string }>;
+      };
+    };
+  }>({
+    shopDomain,
+    accessToken,
+    query: APP_SUBSCRIPTION_CANCEL_MUTATION,
+    variables: { id: active.id, prorate: false },
+  });
+
+  const errors = result?.data?.appSubscriptionCancel?.userErrors || [];
+  if (errors.length > 0) {
+    throw new Error(errors.map((e) => e.message).join("; "));
+  }
+
+  await syncBillingSubscriptionForShop(shopId, shopDomain, accessToken);
+  return { cancelled: true as const };
 }
 
 export async function createSubscriptionConfirmationUrl({

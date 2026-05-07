@@ -129,6 +129,9 @@ const EXACT_TRANSLATIONS = {
     Saving: "Salvando...",
     "Loading media...": "Carregando mídia...",
     "No media available yet.": "Nenhuma mídia disponível ainda.",
+    "Are you sure you want to cancel your Premium subscription? Billing changes follow Shopify subscription rules.":
+      "Tem certeza de que deseja cancelar sua assinatura Premium? As alterações de cobrança seguem as regras de assinatura da Shopify.",
+    "Could not cancel subscription.": "Não foi possível cancelar a assinatura.",
   },
   es: {
     Dashboard: "Panel",
@@ -221,11 +224,16 @@ const EXACT_TRANSLATIONS = {
     Saving: "Guardando...",
     "Loading media...": "Cargando medios...",
     "No media available yet.": "Aún no hay medios disponibles.",
+    "Are you sure you want to cancel your Premium subscription? Billing changes follow Shopify subscription rules.":
+      "¿Seguro que quieres cancelar tu suscripción Premium? Los cambios de facturación siguen las reglas de suscripción de Shopify.",
+    "Could not cancel subscription.": "No se pudo cancelar la suscripción.",
   },
 };
 
 function getStoredLanguage() {
   if (typeof window === "undefined") return DEFAULT_LANGUAGE;
+  // Do not infer from browser/shop locale. Default must always be English
+  // unless the merchant explicitly saved a preference.
   const value = window.localStorage.getItem(STORAGE_KEY) || DEFAULT_LANGUAGE;
   return LANGUAGE_OPTIONS.some((option) => option.value === value)
     ? value
@@ -266,11 +274,7 @@ const I18nContext = createContext({
 });
 
 export function I18nProvider({ children }) {
-  const [language, setLanguageState] = useState(DEFAULT_LANGUAGE);
-
-  useEffect(() => {
-    setLanguageState(getStoredLanguage());
-  }, []);
+  const [language, setLanguageState] = useState(() => getStoredLanguage());
 
   useEffect(() => {
     if (typeof window === "undefined") return;
