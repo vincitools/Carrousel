@@ -31,8 +31,8 @@
 <div
   data-carrousel-block
   data-block-id="{{ block.id }}"
-  data-endpoint="https://{{ shop.permanent_domain }}/apps/carrousel"
-  data-track-endpoint="https://{{ shop.permanent_domain }}/apps/carrousel/track"
+  data-endpoint="/apps/carrousel"
+  data-track-endpoint="/apps/carrousel/track"
   data-heading="{{ block.settings.heading | escape }}"
   data-heading-size="{{ block.settings.heading_size }}px"
   data-heading-align="{{ block.settings.heading_align }}"
@@ -91,7 +91,8 @@
       "type": "metaobject",
       "id": "playlist_metaobject",
       "label": "Playlist",
-      "metaobject_type": "vinci_playlist"
+      "metaobject_type": "app--d502b734f2ad37cf0eb3b63420b5d516-vinci_playlist",
+      "info": "Open the Vinci app once after install so playlists appear here."
     },
     {
       "type": "range",

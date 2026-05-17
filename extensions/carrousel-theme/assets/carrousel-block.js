@@ -649,7 +649,9 @@
     if (maxWidth)             root.style.setProperty('--carrousel-max-width', maxWidth);
     if (paddingX)             root.style.setProperty('--carrousel-px', paddingX);
 
-    var url = new URL(endpoint);
+    var url = endpoint.startsWith('http')
+      ? new URL(endpoint)
+      : new URL(endpoint, window.location.origin);
     url.searchParams.set('source', source);
     url.searchParams.set('limit',  limit);
     if (playlistHandle) url.searchParams.set('playlistHandle', playlistHandle);
