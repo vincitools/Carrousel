@@ -1,14 +1,16 @@
 import prisma from "../db.server";
+import {
+  PLAYLIST_APP_OWNED_METAOBJECT_TYPE,
+  PLAYLIST_APP_THEME_METAOBJECT_TYPE,
+  PLAYLIST_MERCHANT_METAOBJECT_TYPE,
+  PLAYLIST_THEME_METAOBJECT_TYPE,
+} from "../constants/playlistMetaobject";
 import { apiVersion } from "../shopify.server";
 
-/** Must match shopify.app.toml [metaobjects.app.vinci_playlist] → API type `$app:vinci_playlist`. */
-const PLAYLIST_METAOBJECT_TYPE = "$app:vinci_playlist";
+const PLAYLIST_METAOBJECT_TYPE = PLAYLIST_APP_OWNED_METAOBJECT_TYPE;
+const LEGACY_METAOBJECT_TYPE_PLAIN = PLAYLIST_MERCHANT_METAOBJECT_TYPE;
 
-/** Theme editor metaobject picker type for this app (see Shopify input settings: app--<appid>-<type>). */
-export const PLAYLIST_THEME_METAOBJECT_TYPE = "app--d502b734f2ad37cf0eb3b63420b5d516-vinci_playlist";
-
-/** Older installs may still have entries under the merchant-owned type name. */
-const LEGACY_METAOBJECT_TYPE_PLAIN = "vinci_playlist";
+export { PLAYLIST_THEME_METAOBJECT_TYPE } from "../constants/playlistMetaobject";
 
 const CUID_LIKE = /^c[a-z0-9]{24}$/i;
 
@@ -79,6 +81,18 @@ const GET_DEFINITION_QUERY = `
       type
       name
       displayNameKey
+    }
+  }
+`;
+
+const LIST_DEFINITIONS_QUERY = `
+  query ListMetaobjectDefinitions($first: Int!) {
+    metaobjectDefinitions(first: $first) {
+      nodes {
+        id
+        type
+        name
+      }
     }
   }
 `;
@@ -220,25 +234,65 @@ async function definitionExists(shopDomain: string, accessToken: string, type: s
   return Boolean(result?.data?.metaobjectDefinitionByType?.id);
 }
 
-/**
- * New stores only get the TOML definition after `shopify app deploy` + install.
- * Create the app-owned definition via API when missing so the Theme Editor picker works.
- */
-export async function ensurePlaylistMetaobjectDefinitionForShop(
+function isPlaylistMetaobjectType(type: string) {
+  const normalized = String(type || "").toLowerCase();
+  return normalized.includes("vinci_playlist");
+}
+
+async function isThemePickerReady(shopDomain: string, accessToken: string) {
+  return definitionExists(shopDomain, accessToken, PLAYLIST_APP_THEME_METAOBJECT_TYPE);
+}
+
+async function hasLegacyMerchantPlaylistDefinition(
   shopDomain: string,
   accessToken: string,
-): Promise<void> {
-  const hasAppOwned = await definitionExists(shopDomain, accessToken, PLAYLIST_METAOBJECT_TYPE);
-  const hasThemeType = await definitionExists(shopDomain, accessToken, PLAYLIST_THEME_METAOBJECT_TYPE);
+) {
+  return definitionExists(shopDomain, accessToken, PLAYLIST_MERCHANT_METAOBJECT_TYPE);
+}
 
-  // Theme editor reads app--<client_id>-vinci_playlist; legacy merchant type alone is not enough.
-  if (hasAppOwned || hasThemeType) {
-    return;
+async function discoverPlaylistMetaobjectTypes(
+  shopDomain: string,
+  accessToken: string,
+): Promise<string[]> {
+  const found = new Set<string>();
+
+  for (const type of [
+    PLAYLIST_APP_THEME_METAOBJECT_TYPE,
+    PLAYLIST_THEME_METAOBJECT_TYPE,
+    PLAYLIST_METAOBJECT_TYPE,
+    PLAYLIST_MERCHANT_METAOBJECT_TYPE,
+  ]) {
+    if (await definitionExists(shopDomain, accessToken, type)) {
+      found.add(type);
+    }
   }
 
-  const definitionInput = {
+  try {
+    const listed = await shopifyGraphql<{
+      data?: { metaobjectDefinitions?: { nodes?: Array<{ type?: string }> } };
+    }>({
+      shopDomain,
+      accessToken,
+      query: LIST_DEFINITIONS_QUERY,
+      variables: { first: 50 },
+    });
+
+    for (const node of listed?.data?.metaobjectDefinitions?.nodes || []) {
+      if (node?.type && isPlaylistMetaobjectType(node.type)) {
+        found.add(node.type);
+      }
+    }
+  } catch (error) {
+    console.warn("[playlist-metaobject-sync] list metaobject definitions failed", error);
+  }
+
+  return Array.from(found);
+}
+
+function buildPlaylistDefinitionInput(type: string) {
+  return {
     name: "Vinci Shoppable Videos Playlists",
-    type: PLAYLIST_METAOBJECT_TYPE,
+    type,
     displayNameKey: PLAYLIST_DISPLAY_NAME_FIELD_KEY,
     access: {
       admin: "MERCHANT_READ_WRITE",
@@ -249,17 +303,21 @@ export async function ensurePlaylistMetaobjectDefinitionForShop(
         key: "playlist_name",
         name: "Playlist Name",
         type: "single_line_text_field",
-        required: true,
       },
       {
         key: "playlist_id",
         name: "Playlist ID",
         type: "single_line_text_field",
-        required: true,
       },
     ],
   };
+}
 
+async function createPlaylistMetaobjectDefinition(
+  shopDomain: string,
+  accessToken: string,
+  type: string,
+): Promise<boolean> {
   try {
     const created = await shopifyGraphql<{
       data?: {
@@ -272,56 +330,128 @@ export async function ensurePlaylistMetaobjectDefinitionForShop(
       shopDomain,
       accessToken,
       query: CREATE_DEFINITION_MUTATION,
-      variables: { definition: definitionInput },
+      variables: { definition: buildPlaylistDefinitionInput(type) },
     });
 
     const errors = created?.data?.metaobjectDefinitionCreate?.userErrors || [];
     if (errors.length > 0) {
-      console.warn(
-        "[playlist-metaobject-sync] ensure definition userErrors",
+      const alreadyExists = errors.some((error) =>
+        /taken|already|exists|reserved/i.test(error.message || ""),
+      );
+      if (alreadyExists) {
+        return true;
+      }
+      console.error(
+        "[playlist-metaobject-sync] create definition userErrors",
+        shopDomain,
+        type,
         JSON.stringify(errors),
       );
+      return false;
     }
+
+    const createdType = created?.data?.metaobjectDefinitionCreate?.metaobjectDefinition?.type || type;
+    console.log("[playlist-metaobject-sync] created definition", shopDomain, createdType);
+    return true;
   } catch (error) {
-    console.warn("[playlist-metaobject-sync] ensure definition failed", error);
+    console.error("[playlist-metaobject-sync] create definition failed", shopDomain, type, error);
+    return false;
   }
+}
+
+/**
+ * Ensures the app-owned metaobject definition required by the theme block picker exists.
+ * That definition is declared in shopify.app.toml and appears after `shopify app deploy` + app update in Admin.
+ */
+export async function ensurePlaylistMetaobjectDefinitionForShop(
+  shopDomain: string,
+  accessToken: string,
+): Promise<boolean> {
+  if (await isThemePickerReady(shopDomain, accessToken)) {
+    return true;
+  }
+
+  const hasLegacy = await hasLegacyMerchantPlaylistDefinition(shopDomain, accessToken);
+  if (hasLegacy) {
+    console.warn(
+      "[playlist-metaobject-sync]",
+      shopDomain,
+      "has legacy merchant type vinci_playlist but theme picker needs",
+      PLAYLIST_APP_THEME_METAOBJECT_TYPE,
+      "— publish a new app version (shopify app deploy) and ask the merchant to update the app.",
+    );
+  } else {
+    console.error(
+      "[playlist-metaobject-sync] Theme picker definition missing for",
+      shopDomain,
+      "expected",
+      PLAYLIST_APP_THEME_METAOBJECT_TYPE,
+      "— run shopify app deploy and have the merchant update Vinci Shoppable Videos in Shopify Admin.",
+    );
+  }
+
+  return false;
+}
+
+/** Run definition ensure + playlist entry sync (call after install / on app open). */
+export async function setupThemePlaylistPickerForShop(
+  shopId: string,
+  overrides?: PlaylistMetaobjectSyncOverrides,
+) {
+  const shop = await prisma.shop.findUnique({
+    where: { id: shopId },
+    select: { shopDomain: true, accessToken: true },
+  });
+
+  const shopDomain = overrides?.shopDomain || shop?.shopDomain;
+  const accessToken = overrides?.accessToken || shop?.accessToken;
+
+  if (!shopDomain || !accessToken || accessToken === "dev-token") {
+    return {
+      definitionReady: false,
+      needsAppUpdate: true,
+      hasLegacyMerchantDefinition: false,
+      types: [] as string[],
+    };
+  }
+
+  const definitionReady = await ensurePlaylistMetaobjectDefinitionForShop(shopDomain, accessToken);
+  await syncPlaylistMetaobjectsForShop(shopId, overrides);
+  const types = await discoverPlaylistMetaobjectTypes(shopDomain, accessToken);
+  const hasLegacyMerchantDefinition = await hasLegacyMerchantPlaylistDefinition(
+    shopDomain,
+    accessToken,
+  );
+
+  return {
+    definitionReady,
+    needsAppUpdate: !definitionReady,
+    hasLegacyMerchantDefinition,
+    types,
+  };
 }
 
 async function resolveAvailablePlaylistMetaobjectTypes(
   shopDomain: string,
   accessToken: string,
 ): Promise<string[]> {
-  const available: string[] = [];
+  const discovered = await discoverPlaylistMetaobjectTypes(shopDomain, accessToken);
 
-  if (await definitionExists(shopDomain, accessToken, PLAYLIST_METAOBJECT_TYPE)) {
-    available.push(PLAYLIST_METAOBJECT_TYPE);
-  }
-
-  if (await definitionExists(shopDomain, accessToken, PLAYLIST_THEME_METAOBJECT_TYPE)) {
-    if (!available.includes(PLAYLIST_THEME_METAOBJECT_TYPE)) {
-      available.push(PLAYLIST_THEME_METAOBJECT_TYPE);
-    }
-  }
-
-  if (await definitionExists(shopDomain, accessToken, LEGACY_METAOBJECT_TYPE_PLAIN)) {
-    available.push(LEGACY_METAOBJECT_TYPE_PLAIN);
-    if (!available.includes(PLAYLIST_METAOBJECT_TYPE)) {
-      console.warn(
-        "[playlist-metaobject-sync] Using legacy metaobject type",
-        LEGACY_METAOBJECT_TYPE_PLAIN,
-        "— deploy the app so",
-        PLAYLIST_METAOBJECT_TYPE,
-        "from shopify.app.toml is installed.",
-      );
-    }
-  }
-
-  if (available.length > 0) {
-    return available;
+  if (discovered.length > 0) {
+    const ordered = [
+      PLAYLIST_APP_THEME_METAOBJECT_TYPE,
+      PLAYLIST_THEME_METAOBJECT_TYPE,
+      PLAYLIST_METAOBJECT_TYPE,
+      PLAYLIST_MERCHANT_METAOBJECT_TYPE,
+      ...discovered,
+    ];
+    return Array.from(new Set(ordered.filter((type) => discovered.includes(type))));
   }
 
   console.warn(
-    "[playlist-metaobject-sync] No playlist metaobject definition found. Run `shopify app deploy`, then reopen the app.",
+    "[playlist-metaobject-sync] No playlist metaobject definition found for",
+    shopDomain,
+    "— open the app in Admin or run shopify app deploy.",
   );
   return [];
 }
@@ -456,7 +586,13 @@ export async function syncPlaylistMetaobjectsForShop(shopId: string, overrides?:
     return;
   }
 
-  await ensurePlaylistMetaobjectDefinitionForShop(shopDomain, accessToken);
+  const definitionReady = await ensurePlaylistMetaobjectDefinitionForShop(shopDomain, accessToken);
+  if (!definitionReady) {
+    console.warn(
+      "[playlist-metaobject-sync] Theme Editor playlist picker may stay disabled until definition is created for",
+      shopDomain,
+    );
+  }
 
   const playlists = await prisma.playlist.findMany({
     where: { shopId },

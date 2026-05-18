@@ -620,8 +620,8 @@
     root.dataset.initialized = 'true';
 
     var endpoint  = root.dataset.endpoint;
-    var source    = root.dataset.source    || 'default';
     var playlistHandle = root.dataset.playlistHandle || '';
+    var source = playlistHandle ? 'playlist' : (root.dataset.source || 'default');
     var productId = root.dataset.productId || '';
     var limit     = root.dataset.limit     || '12';
     var heading   = root.dataset.heading   || '';

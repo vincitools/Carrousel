@@ -1,19 +1,9 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
+import { resolveDisplayTitle } from "../services/media.server";
 import { requireShop } from "../utils/requireShop.server";
 
 const MAX_ITEMS_PER_PLAYLIST = 10;
-
-function getTitleFromUrl(url: string | null, fallbackId: string) {
-  if (!url) return fallbackId;
-  try {
-    const parsed = new URL(url);
-    const lastSegment = parsed.pathname.split("/").filter(Boolean).pop() || fallbackId;
-    return decodeURIComponent(lastSegment).replace(/\.(mp4|mov|webm|m4v|avi|mkv|jpg|jpeg|png|gif|webp|avif)$/i, "");
-  } catch {
-    return fallbackId;
-  }
-}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -46,6 +36,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
+        title: true,
         type: true,
         thumbnailUrl: true,
         originalUrl: true,
@@ -62,7 +53,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       media: media.map((item) => ({
         id: item.id,
         type: item.type,
-        title: getTitleFromUrl(item.originalUrl || item.thumbnailUrl, item.id),
+        title: resolveDisplayTitle(item.title),
         thumbnail: item.thumbnailUrl || item.originalUrl,
         url: item.originalUrl,
         selected: selectedVideoIds.has(item.id),

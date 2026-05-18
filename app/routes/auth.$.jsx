@@ -1,7 +1,7 @@
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { syncPlaylistMetaobjectsForShop } from "../services/playlistMetaobjectSync.server";
+import { setupThemePlaylistPickerForShop } from "../services/playlistMetaobjectSync.server";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -26,7 +26,7 @@ export const loader = async ({ request }) => {
   // so the theme editor metaobject picker works even before /app is opened.
   try {
     if (row?.id) {
-      await syncPlaylistMetaobjectsForShop(row.id, {
+      await setupThemePlaylistPickerForShop(row.id, {
         accessToken: session.accessToken,
         shopDomain: session.shop,
       });

@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
-import { syncPlaylistMetaobjectsForShop } from "../services/playlistMetaobjectSync.server";
+import { setupThemePlaylistPickerForShop } from "../services/playlistMetaobjectSync.server";
 
 type PlaylistMetaRow = {
   playlistId: string;
@@ -93,7 +93,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
     await ensurePlaylistMetaTable();
     await ensureDefaultPlaylistWithVideos(shop.id);
-    await syncPlaylistMetaobjectsForShop(shop.id, {
+    await setupThemePlaylistPickerForShop(shop.id, {
       accessToken: session.accessToken,
       shopDomain: session.shop,
     });

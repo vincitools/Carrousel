@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { authenticate, unauthenticated } from "../shopify.server";
+import { resolveDisplayTitle } from "../services/media.server";
 
 type StorefrontItem = {
   id: string;
@@ -147,7 +148,7 @@ function mapVideoItem(video: {
 }): StorefrontItem {
   return {
     id: video.id,
-    title: video.title || "Untitled media",
+    title: resolveDisplayTitle(video.title),
     type: video.type,
     url: video.originalUrl,
     thumbnail: video.thumbnailUrl || video.originalUrl,
@@ -456,7 +457,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       error:
         playlistHandle || playlistName
           ? "No media in this playlist yet, or the playlist could not be found."
-          : "Choose a playlist in the block settings (Media source: Specific playlist).",
+          : "Choose a playlist in the Theme Editor block settings.",
     });
   }
 

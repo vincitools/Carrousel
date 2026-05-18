@@ -4,6 +4,7 @@ import { v2 as cloudinary } from "cloudinary";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { requireShop } from "../utils/requireShop.server";
 import { uploadVideo } from "../services/cloudinary.server";
+import { titleFromFileName } from "../services/media.server";
 import { appendFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -43,10 +44,6 @@ function getCloudinaryConfigIssue() {
 
 function normalizeMediaType(value: string | null) {
   return value === "image" ? "image" : "video";
-}
-
-function titleFromFileName(fileName: string) {
-  return String(fileName || "").replace(/\.[^/.]+$/, "").trim() || "Untitled media";
 }
 
 async function buildSignedUpload(shopId: string, mediaType: "video" | "image") {
@@ -154,6 +151,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         success: true,
         video: {
           id: video.id,
+          title: video.title,
           url: video.originalUrl,
           thumbnail: video.thumbnailUrl,
           duration: video.duration,

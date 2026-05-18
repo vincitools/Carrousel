@@ -248,7 +248,10 @@ function UploadSection({
       const finalizeRes = await fetch(finalizeUrl, {
         method: "POST",
         headers: embeddedHeaders,
-        body: new URLSearchParams({ result: JSON.stringify(cloudinaryResult) }),
+        body: new URLSearchParams({
+          result: JSON.stringify(cloudinaryResult),
+          originalFileName: file.name || "",
+        }),
       });
       console.log("Finalize response status:", finalizeRes.status);
       if (!finalizeRes.ok) {

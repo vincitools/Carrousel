@@ -56,6 +56,7 @@ export const action: ActionFunction = async ({ request }) => {
       success: true,
       video: {
         id: video.id,
+        title: video.title,
         url: video.originalUrl,
         thumbnail: video.thumbnailUrl,
         duration: video.duration,

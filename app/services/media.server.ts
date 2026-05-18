@@ -25,15 +25,43 @@ function stripExtension(fileName: string) {
   return fileName.replace(/\.[^/.]+$/, "").trim();
 }
 
+export function titleFromFileName(fileName: string) {
+  return stripExtension(String(fileName || "")) || "Untitled media";
+}
+
+/** Random Cloudinary public_ids and app-generated ids — not suitable as display titles. */
+export function looksLikeGeneratedMediaId(value: string) {
+  const v = String(value || "").trim();
+  if (!v) return true;
+  if (/\s/.test(v)) return false;
+  if (v.startsWith("shopify-")) return true;
+  if (v.length >= 14 && /^[a-z0-9_-]+$/i.test(v) && !v.includes(".")) {
+    const segments = v.split(/[-_]/).filter(Boolean);
+    if (segments.length >= 2 && segments.every((segment) => segment.length <= 14)) {
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
 function resolveMediaTitle(result: any, originalFileName?: string | null) {
-  const fromUpload = stripExtension(String(originalFileName || ""));
-  if (fromUpload) return fromUpload;
+  const fromUpload = titleFromFileName(originalFileName || "");
+  if (fromUpload !== "Untitled media") return fromUpload;
 
   const fromCloudinary = stripExtension(String(result?.original_filename || ""));
-  if (fromCloudinary) return fromCloudinary;
+  if (fromCloudinary && !looksLikeGeneratedMediaId(fromCloudinary)) return fromCloudinary;
 
-  const fromPublicId = stripExtension(String(result?.public_id || "").split("/").pop() || "");
-  if (fromPublicId) return fromPublicId;
+  return "Untitled media";
+}
+
+/** Title safe to show in admin UI (stored title or upload filename). */
+export function resolveDisplayTitle(storedTitle?: string | null, originalFileName?: string | null) {
+  const stored = String(storedTitle || "").trim();
+  if (stored && !looksLikeGeneratedMediaId(stored)) return stored;
+
+  const fromFile = titleFromFileName(originalFileName || "");
+  if (fromFile !== "Untitled media") return fromFile;
 
   return "Untitled media";
 }

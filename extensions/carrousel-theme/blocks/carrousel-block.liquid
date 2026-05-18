@@ -17,7 +17,7 @@
   endif
 
   assign resolved_playlist_handle = blank
-  if block.settings.media_source == 'playlist' and block.settings.playlist_metaobject != blank
+  if block.settings.playlist_metaobject != blank
     assign mo = block.settings.playlist_metaobject
     assign playlist_id_field = mo.playlist_id.value | default: mo.playlist_id
     if playlist_id_field != blank
@@ -25,6 +25,11 @@
     else
       assign resolved_playlist_handle = mo.handle
     endif
+  endif
+
+  assign resolved_source = 'default'
+  if resolved_playlist_handle != blank
+    assign resolved_source = 'playlist'
   endif
 %}
 
@@ -37,7 +42,7 @@
   data-heading-size="{{ block.settings.heading_size }}px"
   data-heading-align="{{ block.settings.heading_align }}"
   data-layout="{{ block.settings.layout }}"
-  data-source="{{ block.settings.media_source | escape }}"
+  data-source="{{ resolved_source | escape }}"
   data-playlist-handle="{{ resolved_playlist_handle | escape }}"
   data-product-id="{{ resolved_product_id }}"
   data-limit="{{ block.settings.media_limit }}"
@@ -67,9 +72,6 @@
   "target": "section",
   "stylesheet": "carrousel-block.css",
   "javascript": "carrousel-block.js",
-  "enabled_on": {
-    "templates": ["index", "product", "collection"]
-  },
   "settings": [
     {
       "type": "text",
@@ -78,21 +80,10 @@
       "default": "Shop the carousel"
     },
     {
-      "type": "select",
-      "id": "media_source",
-      "label": "Media source",
-      "default": "default",
-      "options": [
-        { "value": "default", "label": "Default playlist" },
-        { "value": "playlist", "label": "Specific playlist" }
-      ]
-    },
-    {
       "type": "metaobject",
       "id": "playlist_metaobject",
       "label": "Playlist",
-      "metaobject_type": "app--d502b734f2ad37cf0eb3b63420b5d516-vinci_playlist",
-      "info": "Open the Vinci app once after install so playlists appear here."
+      "metaobject_type": "app--d502b734f2ad37cf0eb3b63420b5d516-vinci_playlist"
     },
     {
       "type": "range",

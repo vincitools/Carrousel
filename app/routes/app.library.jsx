@@ -865,15 +865,8 @@ function EmptyMediaState() {
 }
 
 function getMediaTitle(item) {
-  const source = item?.url || item?.thumbnail || "";
-
-  try {
-    const url = new URL(source);
-    const lastSegment = url.pathname.split("/").filter(Boolean).pop() || "Untitled media";
-    return decodeURIComponent(lastSegment).replace(/\.(mp4|mov|webm|m4v|avi|mkv|jpg|jpeg|png|gif|webp|avif)$/i, "");
-  } catch {
-    return "Untitled media";
-  }
+  const title = String(item?.title || "").trim();
+  return title || "Untitled media";
 }
 
 function UploadModal({

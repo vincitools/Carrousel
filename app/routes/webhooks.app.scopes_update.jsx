@@ -1,6 +1,6 @@
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
-import { syncPlaylistMetaobjectsForShop } from "../services/playlistMetaobjectSync.server";
+import { setupThemePlaylistPickerForShop } from "../services/playlistMetaobjectSync.server";
 
 export const action = async ({ request }) => {
   const { payload, session, topic, shop } = await authenticate.webhook(request);
@@ -25,7 +25,7 @@ export const action = async ({ request }) => {
       select: { id: true },
     });
     if (shopRow?.id && session?.accessToken) {
-      await syncPlaylistMetaobjectsForShop(shopRow.id, {
+      await setupThemePlaylistPickerForShop(shopRow.id, {
         accessToken: session.accessToken,
         shopDomain: shop,
       });

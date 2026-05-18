@@ -14,51 +14,106 @@ import {
   ProgressBar,
   Text,
 } from "@shopify/polaris";
+import type { LoaderFunctionArgs } from "react-router";
+import { authenticate } from "../shopify.server";
 import { requireShopDev } from "../utils/requireShopDev.server";
+import { isCarrouselBlockInstalledInMainTheme } from "../utils/themeCarrouselInstall.server";
 import prisma from "../db.server";
 import { useI18n } from "../utils/i18n";
 
-export const loader = async () => {
-  try {
-    const { shop } = await requireShopDev();
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  let themeEditorUrl = "";
 
-    const [videoCount, taggedVideoCount, playlistCount, themeSettingsCount] = await Promise.all([
-      prisma.video.count({ where: { shopId: shop.id } }),
+  try {
+    const { admin, session } = await authenticate.admin(request);
+    const shopDomain = session?.shop || "";
+    if (shopDomain) {
+      themeEditorUrl = `https://${shopDomain}/admin/themes/current/editor?context=apps`;
+    }
+
+    const shopRow = shopDomain
+      ? await prisma.shop.upsert({
+          where: { shopDomain },
+          update: { accessToken: session.accessToken, uninstalledAt: null },
+          create: { shopDomain, accessToken: session.accessToken },
+          select: { id: true },
+        })
+      : null;
+
+    const shopId = shopRow?.id;
+    if (!shopId) {
+      throw new Error("Shop not found");
+    }
+
+    const [videoCount, taggedVideoCount, playlistCount, playlistEmbedded] = await Promise.all([
+      prisma.video.count({ where: { shopId } }),
       prisma.video.count({
         where: {
-          shopId: shop.id,
+          shopId,
           productTags: {
             some: {},
           },
         },
       }),
-      prisma.playlist.count({ where: { shopId: shop.id } }),
-      prisma.themeSettings.count({ where: { shopId: shop.id } }),
+      prisma.playlist.count({ where: { shopId } }),
+      isCarrouselBlockInstalledInMainTheme(admin),
     ]);
 
     return {
+      themeEditorUrl,
       onboarding: {
         appInstalled: true,
         contentAdded: videoCount > 0 && taggedVideoCount > 0,
         playlistCreated: playlistCount > 0,
-        playlistEmbedded: themeSettingsCount > 0,
+        playlistEmbedded,
       },
     };
   } catch (error) {
     console.warn("[app._index] loader fallback due to error", error);
-    return {
-      onboarding: {
-        appInstalled: true,
-        contentAdded: false,
-        playlistCreated: false,
-        playlistEmbedded: false,
-      },
-    };
+
+    try {
+      const { shop } = await requireShopDev();
+      const [videoCount, taggedVideoCount, playlistCount, themeSettingsCount] = await Promise.all([
+        prisma.video.count({ where: { shopId: shop.id } }),
+        prisma.video.count({
+          where: {
+            shopId: shop.id,
+            productTags: { some: {} },
+          },
+        }),
+        prisma.playlist.count({ where: { shopId: shop.id } }),
+        prisma.themeSettings.count({ where: { shopId: shop.id } }),
+      ]);
+
+      if (shop.shopDomain) {
+        themeEditorUrl = `https://${shop.shopDomain}/admin/themes/current/editor?context=apps`;
+      }
+
+      return {
+        themeEditorUrl,
+        onboarding: {
+          appInstalled: true,
+          contentAdded: videoCount > 0 && taggedVideoCount > 0,
+          playlistCreated: playlistCount > 0,
+          playlistEmbedded: themeSettingsCount > 0,
+        },
+      };
+    } catch {
+      return {
+        themeEditorUrl,
+        onboarding: {
+          appInstalled: true,
+          contentAdded: false,
+          playlistCreated: false,
+          playlistEmbedded: false,
+        },
+      };
+    }
   }
 };
 
 export default function Index() {
-  const { onboarding } = useLoaderData();
+  const { onboarding, themeEditorUrl } = useLoaderData();
   const { t } = useI18n();
 
   const stepsDone = [
@@ -101,8 +156,9 @@ export default function Index() {
       title: t("Show Playlists on Store Pages"),
       description: t("Complete setup in the Theme Editor so playlists appear on your store pages."),
       done: onboarding.playlistEmbedded,
-      ctaLabel: t("Open Settings"),
-      href: "/app/settings",
+      ctaLabel: t("Open Theme Editor"),
+      href: themeEditorUrl || "/app/playlists",
+      external: Boolean(themeEditorUrl),
     },
   ];
 
@@ -164,7 +220,12 @@ export default function Index() {
                             </Text>
                             <InlineStack>
                               {index === 0 ? null : (
-                                <Button url={step.href} variant={step.done ? "secondary" : "primary"}>
+                                <Button
+                                  url={step.href}
+                                  variant={step.done ? "secondary" : "primary"}
+                                  external={step.external}
+                                  target={step.external ? "_blank" : undefined}
+                                >
                                   {step.done ? t("Open") : t(step.ctaLabel)}
                                 </Button>
                               )}

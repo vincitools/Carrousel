@@ -5,90 +5,41 @@ import { useLoaderData } from "react-router";
 import { Banner, BlockStack, Button, Card, Modal, Page } from "@shopify/polaris";
 import { getEmbeddedHeaders } from "../utils/embedded-auth.client";
 import { authenticate } from "../shopify.server";
+import { setupThemePlaylistPickerForShop } from "../services/playlistMetaobjectSync.server";
 import { requireShopDev } from "../utils/requireShopDev.server";
-
-type TemplateName = "product" | "index" | "collection";
-
-function containsCarrouselBlock(content: string | undefined) {
-  if (!content) return false;
-  return content.includes("/blocks/carrousel-block/") || content.includes("carrousel-block");
-}
+import { isCarrouselBlockInstalledInMainTheme } from "../utils/themeCarrouselInstall.server";
+import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   let hasWidgetInstalled = false;
   let shopDomain = "";
+  let themePickerReady = false;
 
   try {
     const { admin, session } = await authenticate.admin(request);
     shopDomain = session?.shop || "";
-    const response = await admin.graphql(`
-      query PlaylistThemeCheck {
-        themes(first: 20) {
-          nodes {
-            id
-            role
-          }
-        }
-      }
-    `);
 
-    const payload = (await response.json()) as {
-      data?: { themes?: { nodes?: Array<{ id: string; role: string }> } };
-    };
-    const mainTheme = payload?.data?.themes?.nodes?.find((theme) => theme.role === "MAIN");
-
-    if (mainTheme) {
-      const filesResponse = await admin.graphql(
-        `
-          query ThemeFiles($id: ID!, $filenames: [String!]) {
-            theme(id: $id) {
-              files(first: 10, filenames: $filenames) {
-                nodes {
-                  filename
-                  body {
-                    ... on OnlineStoreThemeFileBodyText {
-                      content
-                    }
-                  }
-                }
-              }
-            }
-          }
-        `,
-        {
-          variables: {
-            id: mainTheme.id,
-            filenames: [
-              "templates/product.json",
-              "templates/index.json",
-              "templates/collection.json",
-            ] satisfies string[],
-          },
-        },
-      );
-
-      const filesPayload = (await filesResponse.json()) as {
-        data?: {
-          theme?: {
-            files?: {
-              nodes?: Array<{ filename: string; body?: { content?: string } | null }>;
-            };
-          };
-        };
-      };
-
-      const templates: TemplateName[] = ["product", "index", "collection"];
-      hasWidgetInstalled = templates.some((template) => {
-        const filename = `templates/${template}.json`;
-        const match = filesPayload?.data?.theme?.files?.nodes?.find((node) => node.filename === filename);
-        return containsCarrouselBlock(match?.body?.content);
+    if (session?.shop && session.accessToken) {
+      const shopRow = await prisma.shop.upsert({
+        where: { shopDomain: session.shop },
+        update: { accessToken: session.accessToken, uninstalledAt: null },
+        create: { shopDomain: session.shop, accessToken: session.accessToken },
+        select: { id: true },
       });
+      if (shopRow?.id) {
+        const setup = await setupThemePlaylistPickerForShop(shopRow.id, {
+          shopDomain: session.shop,
+          accessToken: session.accessToken,
+        });
+        themePickerReady = setup.definitionReady;
+      }
     }
+    hasWidgetInstalled = await isCarrouselBlockInstalledInMainTheme(admin);
   } catch (error) {
     console.warn("[playlists] failed to evaluate theme block installation", error);
     const { shop } = await requireShopDev();
     shopDomain = shop?.shopDomain || "";
-    hasWidgetInstalled = !!(await Promise.resolve(shop?.id));
+    hasWidgetInstalled = false;
   }
 
   if (!shopDomain) {
@@ -99,7 +50,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ? `https://${shopDomain}/admin/themes/current/editor?context=apps`
     : "";
 
-  return { hasWidgetInstalled, themeEditorUrl };
+  return { hasWidgetInstalled, themeEditorUrl, themePickerReady };
 };
 
 type XhrRequestParams = {
@@ -202,7 +153,9 @@ async function requestJsonWithFallback({
 }
 
 export default function PlaylistsPage() {
-  const { hasWidgetInstalled, themeEditorUrl } = useLoaderData<typeof loader>();
+  const { hasWidgetInstalled, themeEditorUrl, themePickerReady } = useLoaderData<typeof loader>();
+  const [syncingThemePicker, setSyncingThemePicker] = useState(false);
+  const [themePickerMessage, setThemePickerMessage] = useState("");
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [openCreateModal, setOpenCreateModal] = useState(false);
@@ -231,6 +184,38 @@ export default function PlaylistsPage() {
     () => productTagInput.split(",").map((tag) => tag.trim()).filter(Boolean),
     [productTagInput]
   );
+
+  const syncThemePicker = async () => {
+    if (syncingThemePicker) return;
+    setSyncingThemePicker(true);
+    setThemePickerMessage("");
+    try {
+      const headers = await getEmbeddedHeaders();
+      const response = await fetch("/api/playlists/setup-theme", {
+        method: "POST",
+        headers,
+        body: new URLSearchParams(),
+      });
+      const payload = (await response.json()) as {
+        success?: boolean;
+        message?: string;
+        error?: string;
+        needsAppUpdate?: boolean;
+      };
+      if (!response.ok) {
+        setThemePickerMessage(payload?.error || payload?.message || "Theme setup failed.");
+        return;
+      }
+      setThemePickerMessage(payload.message || (payload.success ? "Theme Editor playlist picker is ready." : "Theme setup incomplete."));
+      if (!payload?.success) return;
+      await loadPlaylists();
+    } catch (syncError) {
+      console.error("[playlists] theme picker setup failed", syncError);
+      setThemePickerMessage("Theme setup failed. Try again.");
+    } finally {
+      setSyncingThemePicker(false);
+    }
+  };
 
   const loadPlaylists = async () => {
     setError("");
@@ -495,10 +480,23 @@ export default function PlaylistsPage() {
           </div>
 
           <div style={{ marginTop: "12px" }}>
-            <Banner tone="info" title="Theme app extension setup">
+            <Banner
+              tone={themePickerReady ? "success" : "warning"}
+              title={themePickerReady ? "Theme Editor playlist picker is ready" : "Enable playlist dropdown in Theme Editor"}
+            >
               <p style={{ margin: 0 }}>
-                1) Open Theme Editor, 2) add the <strong>Carrousel</strong> app block, 3) save the theme, and 4) preview your storefront.
+                {themePickerReady
+                  ? "Refresh the Theme Editor and choose a playlist from the Playlist field."
+                  : "If the Theme Editor shows a metaobject error, publish the latest app version (shopify app deploy), then update Vinci Shoppable Videos under Shopify Admin → Apps. Open this page once to sync playlists, then refresh the Theme Editor."}
               </p>
+              <div style={{ marginTop: "10px" }}>
+                <Button onClick={syncThemePicker} loading={syncingThemePicker}>
+                  {themePickerReady ? "Re-sync playlists to Theme Editor" : "Enable playlist picker for this store"}
+                </Button>
+              </div>
+              {themePickerMessage ? (
+                <p style={{ margin: "8px 0 0", fontSize: "14px" }}>{themePickerMessage}</p>
+              ) : null}
               {themeEditorUrl ? (
                 <p style={{ margin: "8px 0 0" }}>
                   <a href={themeEditorUrl} target="_blank" rel="noreferrer">
@@ -565,7 +563,7 @@ export default function PlaylistsPage() {
                     disabled={isDefault}
                     variant="primary"
                   >
-                    Add Content
+                    Edit Content
                   </Button>
 
                   <Button
@@ -580,6 +578,14 @@ export default function PlaylistsPage() {
 
                 {expanded && (
                   <div style={{ padding: "0 16px 16px 28px" }}>
+                    <p style={{ color: "#6b7280", fontSize: "13px", margin: "0 0 10px" }}>
+                      Theme Editor playlist ID:{" "}
+                      <code style={{ background: "#f3f4f6", borderRadius: "4px", padding: "2px 6px" }}>
+                        {playlist.id}
+                      </code>
+                      {" "}
+                      (paste into Playlist ID if the dropdown is unavailable)
+                    </p>
                     {playlist.thumbnails?.length ? (
                       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                         {playlist.thumbnails.map((entry) => (

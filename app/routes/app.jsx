@@ -5,7 +5,7 @@ import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-react-ro
 import { NavMenu } from "@shopify/app-bridge-react";
 import { AppProvider } from "@shopify/polaris";
 import prisma from "../db.server";
-import { syncPlaylistMetaobjectsForShop } from "../services/playlistMetaobjectSync.server";
+import { setupThemePlaylistPickerForShop } from "../services/playlistMetaobjectSync.server";
 import { I18nProvider, useI18n } from "../utils/i18n";
 
 export const loader = async ({ request }) => {
@@ -25,7 +25,7 @@ export const loader = async ({ request }) => {
         select: { id: true },
       });
       if (shop?.id) {
-        await syncPlaylistMetaobjectsForShop(shop.id, {
+        await setupThemePlaylistPickerForShop(shop.id, {
           accessToken: session.accessToken,
           shopDomain: session.shop,
         });
