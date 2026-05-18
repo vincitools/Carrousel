@@ -14,14 +14,13 @@ import {
   ProgressBar,
   Text,
 } from "@shopify/polaris";
-import type { LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import { requireShopDev } from "../utils/requireShopDev.server";
 import { isCarrouselBlockInstalledInMainTheme } from "../utils/themeCarrouselInstall.server";
 import prisma from "../db.server";
 import { useI18n } from "../utils/i18n";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
+export const loader = async ({ request }) => {
   let themeEditorUrl = "";
 
   try {
