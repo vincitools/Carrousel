@@ -514,14 +514,6 @@ export default function PlaylistsPage() {
 
                 {expanded && (
                   <div style={{ padding: "0 16px 16px 28px" }}>
-                    <p style={{ color: "#6b7280", fontSize: "13px", margin: "0 0 10px" }}>
-                      Theme Editor playlist ID:{" "}
-                      <code style={{ background: "#f3f4f6", borderRadius: "4px", padding: "2px 6px" }}>
-                        {playlist.id}
-                      </code>
-                      {" "}
-                      (paste into Playlist ID if the dropdown is unavailable)
-                    </p>
                     {playlist.thumbnails?.length ? (
                       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                         {playlist.thumbnails.map((entry) => (

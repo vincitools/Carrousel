@@ -2,7 +2,10 @@ import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { authenticate, unauthenticated } from "../shopify.server";
 import { resolveDisplayTitle } from "../services/media.server";
-import { setupThemePlaylistPickerForShop } from "../services/playlistMetaobjectSync.server";
+import {
+  provisionThemePlaylistPicker,
+  syncPlaylistMetaobjectsForShop,
+} from "../services/playlistMetaobjectSync.server";
 
 type StorefrontItem = {
   id: string;
@@ -427,9 +430,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     shopRecord.shopDomain
   ) {
     try {
-      await setupThemePlaylistPickerForShop(shopRecord.id, {
+      await provisionThemePlaylistPicker(shopRecord.shopDomain, shopRecord.accessToken);
+      void syncPlaylistMetaobjectsForShop(shopRecord.id, {
         shopDomain: shopRecord.shopDomain,
         accessToken: shopRecord.accessToken,
+      }).catch((syncError) => {
+        console.warn("[proxy.carrousel] playlist metaobject sync failed", syncError);
       });
     } catch (setupError) {
       console.warn("[proxy.carrousel] playlist metaobject setup failed", setupError);
