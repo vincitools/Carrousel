@@ -2,6 +2,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { authenticate, unauthenticated } from "../shopify.server";
 import { resolveDisplayTitle } from "../services/media.server";
+import { setupThemePlaylistPickerForShop } from "../services/playlistMetaobjectSync.server";
 
 type StorefrontItem = {
   id: string;
@@ -418,6 +419,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       },
       404,
     );
+  }
+
+  if (
+    shopRecord.accessToken &&
+    shopRecord.accessToken !== "dev-token" &&
+    shopRecord.shopDomain
+  ) {
+    try {
+      await setupThemePlaylistPickerForShop(shopRecord.id, {
+        shopDomain: shopRecord.shopDomain,
+        accessToken: shopRecord.accessToken,
+      });
+    } catch (setupError) {
+      console.warn("[proxy.carrousel] playlist metaobject setup failed", setupError);
+    }
   }
 
   // Return playlist list for the design-mode picker

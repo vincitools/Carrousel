@@ -13,8 +13,6 @@ import prisma from "../db.server";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   let hasWidgetInstalled = false;
   let shopDomain = "";
-  let themePickerReady = false;
-
   try {
     const { admin, session } = await authenticate.admin(request);
     shopDomain = session?.shop || "";
@@ -27,11 +25,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         select: { id: true },
       });
       if (shopRow?.id) {
-        const setup = await setupThemePlaylistPickerForShop(shopRow.id, {
+        await setupThemePlaylistPickerForShop(shopRow.id, {
           shopDomain: session.shop,
           accessToken: session.accessToken,
         });
-        themePickerReady = setup.definitionReady;
       }
     }
     hasWidgetInstalled = await isCarrouselBlockInstalledInMainTheme(admin);
@@ -50,7 +47,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ? `https://${shopDomain}/admin/themes/current/editor?context=apps`
     : "";
 
-  return { hasWidgetInstalled, themeEditorUrl, themePickerReady };
+  return { hasWidgetInstalled, themeEditorUrl };
 };
 
 type XhrRequestParams = {
@@ -153,9 +150,7 @@ async function requestJsonWithFallback({
 }
 
 export default function PlaylistsPage() {
-  const { hasWidgetInstalled, themeEditorUrl, themePickerReady } = useLoaderData<typeof loader>();
-  const [syncingThemePicker, setSyncingThemePicker] = useState(false);
-  const [themePickerMessage, setThemePickerMessage] = useState("");
+  const { hasWidgetInstalled, themeEditorUrl } = useLoaderData<typeof loader>();
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [openCreateModal, setOpenCreateModal] = useState(false);
@@ -184,38 +179,6 @@ export default function PlaylistsPage() {
     () => productTagInput.split(",").map((tag) => tag.trim()).filter(Boolean),
     [productTagInput]
   );
-
-  const syncThemePicker = async () => {
-    if (syncingThemePicker) return;
-    setSyncingThemePicker(true);
-    setThemePickerMessage("");
-    try {
-      const headers = await getEmbeddedHeaders();
-      const response = await fetch("/api/playlists/setup-theme", {
-        method: "POST",
-        headers,
-        body: new URLSearchParams(),
-      });
-      const payload = (await response.json()) as {
-        success?: boolean;
-        message?: string;
-        error?: string;
-        needsAppUpdate?: boolean;
-      };
-      if (!response.ok) {
-        setThemePickerMessage(payload?.error || payload?.message || "Theme setup failed.");
-        return;
-      }
-      setThemePickerMessage(payload.message || (payload.success ? "Theme Editor playlist picker is ready." : "Theme setup incomplete."));
-      if (!payload?.success) return;
-      await loadPlaylists();
-    } catch (syncError) {
-      console.error("[playlists] theme picker setup failed", syncError);
-      setThemePickerMessage("Theme setup failed. Try again.");
-    } finally {
-      setSyncingThemePicker(false);
-    }
-  };
 
   const loadPlaylists = async () => {
     setError("");
@@ -479,33 +442,6 @@ export default function PlaylistsPage() {
             <ToolbarButton variant="primary" onClick={openCreate}>+ Create Playlist</ToolbarButton>
           </div>
 
-          <div style={{ marginTop: "12px" }}>
-            <Banner
-              tone={themePickerReady ? "success" : "warning"}
-              title={themePickerReady ? "Theme Editor playlist picker is ready" : "Enable playlist dropdown in Theme Editor"}
-            >
-              <p style={{ margin: 0 }}>
-                {themePickerReady
-                  ? "Refresh the Theme Editor and choose a playlist from the Playlist field."
-                  : "If the Theme Editor shows a metaobject error, publish the latest app version (shopify app deploy), then update Vinci Shoppable Videos under Shopify Admin → Apps. Open this page once to sync playlists, then refresh the Theme Editor."}
-              </p>
-              <div style={{ marginTop: "10px" }}>
-                <Button onClick={syncThemePicker} loading={syncingThemePicker}>
-                  {themePickerReady ? "Re-sync playlists to Theme Editor" : "Enable playlist picker for this store"}
-                </Button>
-              </div>
-              {themePickerMessage ? (
-                <p style={{ margin: "8px 0 0", fontSize: "14px" }}>{themePickerMessage}</p>
-              ) : null}
-              {themeEditorUrl ? (
-                <p style={{ margin: "8px 0 0" }}>
-                  <a href={themeEditorUrl} target="_blank" rel="noreferrer">
-                    Open Theme Editor
-                  </a>
-                </p>
-              ) : null}
-            </Banner>
-          </div>
 
 
         {!hasWidgetInstalled && playlists.length > 0 ? (

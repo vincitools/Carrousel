@@ -240,6 +240,9 @@ function isPlaylistMetaobjectType(type: string) {
 }
 
 async function isThemePickerReady(shopDomain: string, accessToken: string) {
+  if (await definitionExists(shopDomain, accessToken, PLAYLIST_THEME_METAOBJECT_TYPE)) {
+    return true;
+  }
   return definitionExists(shopDomain, accessToken, PLAYLIST_APP_THEME_METAOBJECT_TYPE);
 }
 
@@ -360,33 +363,48 @@ async function createPlaylistMetaobjectDefinition(
 }
 
 /**
- * Ensures the app-owned metaobject definition required by the theme block picker exists.
- * That definition is declared in shopify.app.toml and appears after `shopify app deploy` + app update in Admin.
+ * Ensures the metaobject definition required by the theme block picker exists.
+ * Theme schema uses merchant type `vinci_playlist` (API-creatable). App-owned (TOML) is optional.
  */
 export async function ensurePlaylistMetaobjectDefinitionForShop(
   shopDomain: string,
   accessToken: string,
 ): Promise<boolean> {
-  if (await isThemePickerReady(shopDomain, accessToken)) {
+  if (await definitionExists(shopDomain, accessToken, PLAYLIST_THEME_METAOBJECT_TYPE)) {
     return true;
   }
 
-  const hasLegacy = await hasLegacyMerchantPlaylistDefinition(shopDomain, accessToken);
-  if (hasLegacy) {
+  await createPlaylistMetaobjectDefinition(
+    shopDomain,
+    accessToken,
+    PLAYLIST_THEME_METAOBJECT_TYPE,
+  );
+
+  const ready = await definitionExists(shopDomain, accessToken, PLAYLIST_THEME_METAOBJECT_TYPE);
+  if (ready) {
+    return true;
+  }
+
+  const hasAppOwned = await definitionExists(
+    shopDomain,
+    accessToken,
+    PLAYLIST_APP_THEME_METAOBJECT_TYPE,
+  );
+  if (hasAppOwned) {
     console.warn(
       "[playlist-metaobject-sync]",
       shopDomain,
-      "has legacy merchant type vinci_playlist but theme picker needs",
-      PLAYLIST_APP_THEME_METAOBJECT_TYPE,
-      "— publish a new app version (shopify app deploy) and ask the merchant to update the app.",
+      "has app-owned definition but merchant",
+      PLAYLIST_THEME_METAOBJECT_TYPE,
+      "is missing — check write_metaobject_definitions scope.",
     );
   } else {
     console.error(
       "[playlist-metaobject-sync] Theme picker definition missing for",
       shopDomain,
       "expected",
-      PLAYLIST_APP_THEME_METAOBJECT_TYPE,
-      "— run shopify app deploy and have the merchant update Vinci Shoppable Videos in Shopify Admin.",
+      PLAYLIST_THEME_METAOBJECT_TYPE,
+      "— open the app in Shopify Admin once or reinstall to grant metaobject scopes.",
     );
   }
 
@@ -439,10 +457,10 @@ async function resolveAvailablePlaylistMetaobjectTypes(
 
   if (discovered.length > 0) {
     const ordered = [
-      PLAYLIST_APP_THEME_METAOBJECT_TYPE,
       PLAYLIST_THEME_METAOBJECT_TYPE,
-      PLAYLIST_METAOBJECT_TYPE,
       PLAYLIST_MERCHANT_METAOBJECT_TYPE,
+      PLAYLIST_APP_THEME_METAOBJECT_TYPE,
+      PLAYLIST_METAOBJECT_TYPE,
       ...discovered,
     ];
     return Array.from(new Set(ordered.filter((type) => discovered.includes(type))));

@@ -41,8 +41,11 @@ export const loader = async ({ request }) => {
   return { apiKey: process.env.SHOPIFY_API_KEY || process.env.API_KEY || "" };
 };
 
-export function shouldRevalidate() {
-  // apiKey never changes at runtime; skip re-auth on every child-route navigation.
+export function shouldRevalidate({ currentUrl, nextUrl }) {
+  // Re-run setup when entering the app shell so metaobject definitions sync after reinstall/scope updates.
+  if (currentUrl.pathname !== nextUrl.pathname && nextUrl.pathname.startsWith("/app")) {
+    return true;
+  }
   return false;
 }
 
