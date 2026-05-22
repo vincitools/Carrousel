@@ -356,6 +356,43 @@ export type ThemePickerProvisionResult = {
   syncedTypes: string[];
 };
 
+export type ThemePlaylistPickerStatus = {
+  definitionReady: boolean;
+  needsAppUpdate: boolean;
+  hasLegacyMerchantDefinition: boolean;
+  expectedType: string;
+  types: string[];
+  provisionErrors: string[];
+  entryCount: number;
+  playlistCount: number;
+  message: string;
+};
+
+function buildThemePickerMessage(input: {
+  definitionReady: boolean;
+  entryCount: number;
+  playlistCount: number;
+  hasLegacyMerchantDefinition: boolean;
+  provisionErrors: string[];
+}): string {
+  if (input.definitionReady && input.entryCount > 0) {
+    return `Theme Editor dropdown is ready (${input.entryCount} playlist${input.entryCount === 1 ? "" : "s"} synced). Refresh the Theme Editor to pick one.`;
+  }
+  if (input.definitionReady && input.playlistCount > 0 && input.entryCount === 0) {
+    return "Definition is ready but entries are missing. Click Sync for Theme Editor below.";
+  }
+  if (input.definitionReady) {
+    return "Definition is ready. Create a playlist here, sync, then refresh the Theme Editor.";
+  }
+  if (input.hasLegacyMerchantDefinition) {
+    return "This store has an older playlist setup. Run shopify app deploy, then update Vinci Shoppable Videos in Admin → Apps.";
+  }
+  if (input.provisionErrors.length > 0) {
+    return `Theme picker setup failed: ${input.provisionErrors.join("; ")}`;
+  }
+  return "Theme picker definition is missing. Run shopify app deploy, update the app in Admin → Apps, then open Playlists and sync.";
+}
+
 async function createPlaylistMetaobjectDefinition(
   shopDomain: string,
   accessToken: string,
@@ -454,6 +491,17 @@ export async function provisionThemePlaylistPicker(
     createErrors.push(...appOwned.errors);
   }
 
+  if (!(await isThemePickerReady(shopDomain, accessToken))) {
+    const themeDirect = await createPlaylistMetaobjectDefinition(
+      shopDomain,
+      accessToken,
+      PLAYLIST_APP_THEME_METAOBJECT_TYPE,
+    );
+    if (!themeDirect.ok) {
+      createErrors.push(...themeDirect.errors);
+    }
+  }
+
   if (await isThemePickerReady(shopDomain, accessToken)) {
     return {
       ready: true,
@@ -485,7 +533,7 @@ export async function provisionThemePlaylistPicker(
 export async function setupThemePlaylistPickerForShop(
   shopId: string,
   overrides?: PlaylistMetaobjectSyncOverrides,
-) {
+): Promise<ThemePlaylistPickerStatus> {
   const shop = await prisma.shop.findUnique({
     where: { id: shopId },
     select: { shopDomain: true, accessToken: true },
@@ -499,7 +547,12 @@ export async function setupThemePlaylistPickerForShop(
       definitionReady: false,
       needsAppUpdate: true,
       hasLegacyMerchantDefinition: false,
-      types: [] as string[],
+      expectedType: PLAYLIST_THEME_METAOBJECT_TYPE,
+      types: [],
+      provisionErrors: [],
+      entryCount: 0,
+      playlistCount: 0,
+      message: "Open this app inside Shopify Admin to connect your store.",
     };
   }
 
@@ -511,13 +564,27 @@ export async function setupThemePlaylistPickerForShop(
     shopDomain,
     accessToken,
   );
+  const playlistCount = await prisma.playlist.count({ where: { shopId } });
+  const entryCount = await countThemePickerEntries(shopDomain, accessToken);
+  const provisionErrors = provision.createErrors;
+  const message = buildThemePickerMessage({
+    definitionReady,
+    entryCount,
+    playlistCount,
+    hasLegacyMerchantDefinition,
+    provisionErrors,
+  });
 
   return {
     definitionReady,
     needsAppUpdate: !definitionReady,
     hasLegacyMerchantDefinition,
+    expectedType: PLAYLIST_THEME_METAOBJECT_TYPE,
     types,
-    provisionErrors: provision.createErrors,
+    provisionErrors,
+    entryCount,
+    playlistCount,
+    message,
   };
 }
 
@@ -667,6 +734,23 @@ async function listMetaobjectsOfType(
   }
 
   return nodes;
+}
+
+async function countThemePickerEntries(shopDomain: string, accessToken: string) {
+  if (!(await isThemePickerReady(shopDomain, accessToken))) {
+    return 0;
+  }
+  try {
+    const entries = await listMetaobjectsOfType(
+      shopDomain,
+      accessToken,
+      PLAYLIST_APP_THEME_METAOBJECT_TYPE,
+    );
+    return entries.length;
+  } catch (error) {
+    console.warn("[playlist-metaobject-sync] count theme picker entries failed", error);
+    return 0;
+  }
 }
 
 export type PlaylistMetaobjectSyncOverrides = {

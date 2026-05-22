@@ -490,21 +490,23 @@
 }
 
 .crsl-lb__product-image-wrap {
+  aspect-ratio: 1 / 1;
   background: #f4f4f4;
   border-radius: 10px;
   overflow: hidden;
 }
 
 .crsl-lb__product-image {
-  aspect-ratio: 4 / 3;
   display: block;
-  object-fit: cover;
+  height: 100%;
+  object-fit: contain;
   width: 100%;
 }
 
 .crsl-lb__product-title {
   color: #1a1a1a;
-  font-size: 1.02rem;
+  /* Was 1.02rem (~16.3px); +12% for modal legibility */
+  font-size: 1.15rem;
   font-weight: 700;
   line-height: 1.28;
   margin: 0;
@@ -518,13 +520,15 @@
 
 .crsl-lb__price {
   color: #111;
-  font-size: 1.05rem;
+  /* Was 1.05rem (~16.8px); +12% */
+  font-size: 1.18rem;
   font-weight: 700;
 }
 
 .crsl-lb__compare {
   color: #7a7a7a;
-  font-size: 0.92rem;
+  /* Was 0.92rem (~14.7px); +13% */
+  font-size: 1.04rem;
   text-decoration: line-through;
 }
 
@@ -536,13 +540,16 @@
 }
 
 .crsl-lb__product-desc-p {
-  font-size: 0.9rem;
+  /* Was 0.9rem (~14.4px); +13% */
+  font-size: 1.02rem;
   line-height: 1.35;
   margin: 0;
 }
 
 .crsl-lb__product-desc-link {
   color: #111;
+  /* Inherits desc size; was ~0.9rem via parent */
+  font-size: 1.02rem;
   font-weight: 700;
   margin-left: 2px;
   text-decoration: underline;
@@ -562,7 +569,8 @@
   border-radius: 8px;
   color: #111;
   cursor: pointer;
-  font-size: 0.92rem;
+  /* Was 0.92rem (~14.7px); +13% */
+  font-size: 1.04rem;
   font-weight: 700;
   letter-spacing: 0.01em;
   padding: 12px 14px;
@@ -574,7 +582,8 @@
   border-radius: 8px;
   color: #fff;
   display: flex;
-  font-size: 0.875rem;
+  /* Was 0.875rem (~14px); +13% */
+  font-size: 0.99rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   justify-content: center;

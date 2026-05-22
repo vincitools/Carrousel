@@ -1,6 +1,5 @@
 import type { ActionFunctionArgs } from "react-router";
 import { setupThemePlaylistPickerForShop } from "../services/playlistMetaobjectSync.server";
-import { PLAYLIST_THEME_METAOBJECT_TYPE } from "../constants/playlistMetaobject";
 import { requireShop } from "../utils/requireShop.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -23,22 +22,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       accessToken: shop.accessToken,
     });
 
-    const needsAppUpdate = result.needsAppUpdate && !result.definitionReady;
-
     return Response.json({
       success: result.definitionReady,
-      definitionReady: result.definitionReady,
-      needsAppUpdate,
-      hasLegacyMerchantDefinition: result.hasLegacyMerchantDefinition,
-      expectedType: PLAYLIST_THEME_METAOBJECT_TYPE,
-      types: result.types,
-      message: result.definitionReady
-        ? "Theme Editor playlist picker is ready. Refresh the Theme Editor and select a playlist."
-        : needsAppUpdate && result.hasLegacyMerchantDefinition
-          ? "Your store has an older playlist setup. Deploy the latest app version, then ask the merchant to update Vinci Shoppable Videos in Shopify Admin → Apps."
-          : needsAppUpdate
-            ? "Playlist picker needs the latest app version. Run shopify app deploy, then have the merchant update the app in Shopify Admin → Apps and open Playlists once."
-            : "Could not verify the playlist definition. Open the app in Admin and try again.",
+      ...result,
     });
   } catch (error) {
     console.error("[api.playlists.setup-theme] failed", error);

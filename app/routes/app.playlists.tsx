@@ -5,14 +5,28 @@ import { useLoaderData } from "react-router";
 import { Banner, BlockStack, Button, Card, Modal, Page } from "@shopify/polaris";
 import { getEmbeddedHeaders } from "../utils/embedded-auth.client";
 import { authenticate } from "../shopify.server";
+import { PLAYLIST_THEME_METAOBJECT_TYPE } from "../constants/playlistMetaobject";
 import { setupThemePlaylistPickerForShop } from "../services/playlistMetaobjectSync.server";
 import { requireShopDev } from "../utils/requireShopDev.server";
 import { isCarrouselBlockInstalledInMainTheme } from "../utils/themeCarrouselInstall.server";
 import prisma from "../db.server";
 
+const DEFAULT_THEME_PICKER_STATUS = {
+  definitionReady: false,
+  needsAppUpdate: true,
+  hasLegacyMerchantDefinition: false,
+  expectedType: PLAYLIST_THEME_METAOBJECT_TYPE,
+  types: [] as string[],
+  provisionErrors: [] as string[],
+  entryCount: 0,
+  playlistCount: 0,
+  message: "Open this app inside Shopify Admin to connect your store.",
+};
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   let hasWidgetInstalled = false;
   let shopDomain = "";
+  let themePicker = DEFAULT_THEME_PICKER_STATUS;
   try {
     const { admin, session } = await authenticate.admin(request);
     shopDomain = session?.shop || "";
@@ -25,7 +39,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         select: { id: true },
       });
       if (shopRow?.id) {
-        await setupThemePlaylistPickerForShop(shopRow.id, {
+        themePicker = await setupThemePlaylistPickerForShop(shopRow.id, {
           shopDomain: session.shop,
           accessToken: session.accessToken,
         });
@@ -47,7 +61,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ? `https://${shopDomain}/admin/themes/current/editor?context=apps`
     : "";
 
-  return { hasWidgetInstalled, themeEditorUrl };
+  return { hasWidgetInstalled, themeEditorUrl, themePicker };
 };
 
 type XhrRequestParams = {
@@ -149,8 +163,13 @@ async function requestJsonWithFallback({
   throw lastError || new Error(`${label} failed in all endpoints`);
 }
 
+type ThemePickerState = typeof DEFAULT_THEME_PICKER_STATUS;
+
 export default function PlaylistsPage() {
-  const { hasWidgetInstalled, themeEditorUrl } = useLoaderData<typeof loader>();
+  const { hasWidgetInstalled, themeEditorUrl, themePicker: initialThemePicker } =
+    useLoaderData<typeof loader>();
+  const [themePicker, setThemePicker] = useState<ThemePickerState>(initialThemePicker);
+  const [syncingThemePicker, setSyncingThemePicker] = useState(false);
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [openCreateModal, setOpenCreateModal] = useState(false);
@@ -397,6 +416,41 @@ export default function PlaylistsPage() {
     });
   };
 
+  const syncThemePicker = async () => {
+    if (syncingThemePicker) return;
+    setSyncingThemePicker(true);
+    setError("");
+    try {
+      const { payload } = await requestJsonWithFallback({
+        label: "sync theme picker",
+        urls: ["/api/playlists/setup-theme"],
+        method: "POST",
+        timeoutMs: 20000,
+      });
+      if (payload) {
+        setThemePicker({
+          definitionReady: Boolean(payload.definitionReady),
+          needsAppUpdate: Boolean(payload.needsAppUpdate),
+          hasLegacyMerchantDefinition: Boolean(payload.hasLegacyMerchantDefinition),
+          expectedType: payload.expectedType || DEFAULT_THEME_PICKER_STATUS.expectedType,
+          types: Array.isArray(payload.types) ? payload.types : [],
+          provisionErrors: Array.isArray(payload.provisionErrors) ? payload.provisionErrors : [],
+          entryCount: Number(payload.entryCount) || 0,
+          playlistCount: Number(payload.playlistCount) || 0,
+          message: payload.message || "",
+        });
+      }
+      if (!payload?.definitionReady) {
+        setError(payload?.message || payload?.error || "Theme Editor playlist picker is not ready yet.");
+      }
+    } catch (syncError) {
+      console.error("[playlists] theme picker sync failed", syncError);
+      setError("Could not sync playlists for the Theme Editor.");
+    } finally {
+      setSyncingThemePicker(false);
+    }
+  };
+
   const savePlaylistContent = async () => {
     if (!activePlaylist || savingContent) return;
 
@@ -443,6 +497,35 @@ export default function PlaylistsPage() {
           </div>
 
 
+
+        <div style={{ marginTop: "16px" }}>
+          <Banner
+            tone={
+              themePicker.definitionReady && themePicker.entryCount > 0
+                ? "success"
+                : themePicker.definitionReady
+                  ? "info"
+                  : "warning"
+            }
+            title="Theme Editor — Playlist dropdown"
+          >
+            <p style={{ margin: "0 0 10px" }}>{themePicker.message}</p>
+            <p style={{ color: "#6b7280", fontSize: "13px", margin: "0 0 10px" }}>
+              Playlists in app: {themePicker.playlistCount} · Synced for picker: {themePicker.entryCount}
+              {themePicker.types.length > 0 ? ` · Types: ${themePicker.types.join(", ")}` : ""}
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+              <Button loading={syncingThemePicker} onClick={syncThemePicker}>
+                Sync for Theme Editor
+              </Button>
+              {themeEditorUrl ? (
+                <Button variant="plain" onClick={() => window.open(themeEditorUrl, "_blank", "noopener,noreferrer")}>
+                  Open Theme Editor
+                </Button>
+              ) : null}
+            </div>
+          </Banner>
+        </div>
 
         {!hasWidgetInstalled && playlists.length > 0 ? (
           <div style={{ marginTop: "22px" }}>

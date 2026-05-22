@@ -15,10 +15,37 @@ import {
   Text,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
+import { FreePlanUpgradeBanner } from "../components/FreePlanUpgradeBanner";
 import { requireShopDev } from "../utils/requireShopDev.server";
 import { isCarrouselBlockInstalledInMainTheme } from "../utils/themeCarrouselInstall.server";
+import { normalizePlanNameFromDb } from "../utils/billingPlan";
 import prisma from "../db.server";
 import { useI18n } from "../utils/i18n";
+
+async function resolveIsFreePlan(shopId, shopDomain, accessToken) {
+  if (accessToken === "dev-token") {
+    return false;
+  }
+
+  if (shopDomain && accessToken) {
+    try {
+      const { syncBillingSubscriptionForShop } = await import("../services/billing.server");
+      await syncBillingSubscriptionForShop(shopId, shopDomain, accessToken);
+    } catch (error) {
+      console.warn("[app._index] billing sync failed", error);
+    }
+  }
+
+  const subscription = await prisma.billingSubscription.findUnique({
+    where: { shopId },
+    select: { planName: true, status: true },
+  });
+
+  const normalizedPlan =
+    subscription?.status === "ACTIVE" ? normalizePlanNameFromDb(subscription.planName) : "free";
+
+  return normalizedPlan === "free";
+}
 
 export const loader = async ({ request }) => {
   let themeEditorUrl = "";
@@ -44,7 +71,7 @@ export const loader = async ({ request }) => {
       throw new Error("Shop not found");
     }
 
-    const [videoCount, taggedVideoCount, playlistCount, playlistEmbedded] = await Promise.all([
+    const [videoCount, taggedVideoCount, playlistCount, playlistEmbedded, isFreePlan] = await Promise.all([
       prisma.video.count({ where: { shopId } }),
       prisma.video.count({
         where: {
@@ -56,10 +83,12 @@ export const loader = async ({ request }) => {
       }),
       prisma.playlist.count({ where: { shopId } }),
       isCarrouselBlockInstalledInMainTheme(admin),
+      resolveIsFreePlan(shopId, shopDomain, session.accessToken),
     ]);
 
     return {
       themeEditorUrl,
+      isFreePlan,
       onboarding: {
         appInstalled: true,
         contentAdded: videoCount > 0 && taggedVideoCount > 0,
@@ -88,8 +117,11 @@ export const loader = async ({ request }) => {
         themeEditorUrl = `https://${shop.shopDomain}/admin/themes/current/editor?context=apps`;
       }
 
+      const isFreePlan = await resolveIsFreePlan(shop.id, shop.shopDomain, shop.accessToken);
+
       return {
         themeEditorUrl,
+        isFreePlan,
         onboarding: {
           appInstalled: true,
           contentAdded: videoCount > 0 && taggedVideoCount > 0,
@@ -100,6 +132,7 @@ export const loader = async ({ request }) => {
     } catch {
       return {
         themeEditorUrl,
+        isFreePlan: true,
         onboarding: {
           appInstalled: true,
           contentAdded: false,
@@ -112,7 +145,7 @@ export const loader = async ({ request }) => {
 };
 
 export default function Index() {
-  const { onboarding, themeEditorUrl } = useLoaderData();
+  const { onboarding, themeEditorUrl, isFreePlan } = useLoaderData();
   const { t } = useI18n();
 
   const stepsDone = [
@@ -169,6 +202,8 @@ export default function Index() {
       secondaryActions={[{ content: t("Open Customers"), url: "shopify://admin/customers", target: "_top" }]}
     >
       <BlockStack gap="400">
+        {isFreePlan ? <FreePlanUpgradeBanner /> : null}
+
         <Card>
           <BlockStack gap="300">
             <InlineStack align="space-between" blockAlign="center">
