@@ -186,6 +186,32 @@
   width: 100%;
 }
 
+/* Free plan — centered app name on videos */
+.crsl-watermark {
+  background: rgba(0, 0, 0, 0.32);
+  border-radius: 8px;
+  color: #fff;
+  font-size: clamp(0.62rem, 2.6vw, 0.9rem);
+  font-weight: 700;
+  left: 50%;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  max-width: 90%;
+  padding: 6px 10px;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+}
+
+.crsl-lb__media-wrap .crsl-watermark {
+  font-size: clamp(0.8rem, 2.4vw, 1.05rem);
+  padding: 8px 12px;
+}
+
 /* play overlay */
 .crsl-card__play {
   align-items: center;
@@ -204,6 +230,7 @@
   transform: translate(-50%, -50%);
   transition: opacity 0.2s ease;
   width: 46px;
+  z-index: 5;
 }
 
 .crsl-card--active .crsl-card__play {

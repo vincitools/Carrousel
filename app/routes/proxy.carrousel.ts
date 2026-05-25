@@ -6,6 +6,37 @@ import {
   provisionThemePlaylistPicker,
   syncPlaylistMetaobjectsForShop,
 } from "../services/playlistMetaobjectSync.server";
+import { normalizePlanNameFromDb } from "../utils/billingPlan";
+
+const APP_DISPLAY_NAME = "Vinci Shoppable Videos";
+
+async function resolveStorefrontWatermark(shopId: string, shopDomain: string, accessToken: string) {
+  if (accessToken === "dev-token") {
+    return { showWatermark: false, watermarkLabel: APP_DISPLAY_NAME };
+  }
+
+  if (shopDomain && accessToken) {
+    try {
+      const { syncBillingSubscriptionForShop } = await import("../services/billing.server");
+      await syncBillingSubscriptionForShop(shopId, shopDomain, accessToken);
+    } catch (error) {
+      console.warn("[proxy.carrousel] billing sync failed", error);
+    }
+  }
+
+  const subscription = await prisma.billingSubscription.findUnique({
+    where: { shopId },
+    select: { planName: true, status: true },
+  });
+
+  const plan =
+    subscription?.status === "ACTIVE" ? normalizePlanNameFromDb(subscription.planName) : "free";
+
+  return {
+    showWatermark: plan === "free",
+    watermarkLabel: APP_DISPLAY_NAME,
+  };
+}
 
 type StorefrontItem = {
   id: string;
@@ -551,10 +582,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
+  const watermark = await resolveStorefrontWatermark(
+    shopRecord.id,
+    shopRecord.shopDomain,
+    shopRecord.accessToken,
+  );
+
   return jsonResponse({
     items,
     source,
     playlist: playlistHandle || playlistName || "Default",
     productId: productId || null,
+    showWatermark: watermark.showWatermark,
+    watermarkLabel: watermark.watermarkLabel,
   });
 };

@@ -2,10 +2,28 @@
   'use strict';
 
   /* ── helpers ── */
+  var APP_WATERMARK_LABEL = 'Vinci Shoppable Videos';
+
   function esc(str) {
     return String(str || '')
       .replace(/&/g, '&amp;').replace(/</g, '&lt;')
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function shouldShowWatermark(root) {
+    return Boolean(root && root.dataset.showWatermark === 'true');
+  }
+
+  function resolveWatermarkLabel(root) {
+    var label = root && root.dataset.watermarkLabel;
+    return label ? String(label) : APP_WATERMARK_LABEL;
+  }
+
+  function renderVideoWatermark(root) {
+    if (!shouldShowWatermark(root)) {
+      return '';
+    }
+    return '<span class="crsl-watermark" aria-hidden="true">' + esc(resolveWatermarkLabel(root)) + '</span>';
   }
 
   /* ── lightbox ── */
@@ -182,9 +200,13 @@
     }
 
     function renderMedia(item) {
-      return item.type === 'VIDEO'
-        ? '<video class="crsl-lb__video" src="' + esc(item.url || '') + '" autoplay loop muted playsinline></video>'
-        : '<img class="crsl-lb__video" src="' + esc(item.url || item.thumbnail || '') + '" alt="' + esc(item.title) + '">';
+      if (item.type === 'VIDEO') {
+        return (
+          '<video class="crsl-lb__video" src="' + esc(item.url || '') + '" autoplay loop muted playsinline></video>' +
+          renderVideoWatermark(root)
+        );
+      }
+      return '<img class="crsl-lb__video" src="' + esc(item.url || item.thumbnail || '') + '" alt="' + esc(item.title) + '">';
     }
 
     function renderProductPane(item) {
@@ -418,7 +440,9 @@
         ? '<span class="crsl-card__media-wrap">' +
           '<video class="crsl-card__media" src="' + esc(item.url || '') +
           '" poster="' + esc(item.thumbnail || '') +
-          '" loop muted playsinline preload="metadata"></video></span>'
+          '" loop muted playsinline preload="metadata"></video>' +
+          renderVideoWatermark(root) +
+          '</span>'
         : '<span class="crsl-card__media-wrap">' +
           '<img class="crsl-card__media" loading="lazy" src="' +
           esc(item.thumbnail || item.url || '') + '" alt="' + esc(item.title) + '"></span>';
@@ -556,7 +580,9 @@
         ? '<span class="crsl-card__media-wrap">' +
           '<video class="crsl-card__media" src="' + esc(item.url || '') +
           '" poster="' + esc(item.thumbnail || '') +
-          '" loop muted playsinline preload="metadata" autoplay></video></span>'
+          '" loop muted playsinline preload="metadata" autoplay></video>' +
+          renderVideoWatermark(root) +
+          '</span>'
         : '<span class="crsl-card__media-wrap">' +
           '<img class="crsl-card__media" loading="lazy" src="' +
           esc(item.thumbnail || item.url || '') + '" alt="' + esc(item.title) + '"></span>';
@@ -673,6 +699,8 @@
           (inEditor ? (payload.error || 'No media matched the current settings yet.') : 'No media is available for this carousel.') +
           '</p></div>';
       } else {
+        root.dataset.showWatermark = payload.showWatermark ? 'true' : 'false';
+        root.dataset.watermarkLabel = payload.watermarkLabel || APP_WATERMARK_LABEL;
         renderItems(root, payload.items, heading, layout);
       }
     } catch (err) {

@@ -239,19 +239,49 @@ function isPlaylistMetaobjectType(type: string) {
   return normalized.includes("vinci_playlist");
 }
 
-/** Theme block schema uses merchant type `vinci_playlist` (API-provisioned on every store). */
+const APP_OWNED_THEME_TYPE_PATTERN = /^app--\d+--vinci_playlist$/;
+
+/** Prefer the app-owned type Shopify created from TOML (`app--{numericId}--vinci_playlist`). */
+async function discoverAppOwnedThemeMetaobjectType(
+  shopDomain: string,
+  accessToken: string,
+): Promise<string | null> {
+  if (await definitionExists(shopDomain, accessToken, PLAYLIST_APP_THEME_METAOBJECT_TYPE)) {
+    return PLAYLIST_APP_THEME_METAOBJECT_TYPE;
+  }
+
+  try {
+    const listed = await shopifyGraphql<{
+      data?: { metaobjectDefinitions?: { nodes?: Array<{ type?: string }> } };
+    }>({
+      shopDomain,
+      accessToken,
+      query: LIST_DEFINITIONS_QUERY,
+      variables: { first: 50 },
+    });
+
+    for (const node of listed?.data?.metaobjectDefinitions?.nodes || []) {
+      const type = String(node?.type || "");
+      if (APP_OWNED_THEME_TYPE_PATTERN.test(type)) {
+        return type;
+      }
+    }
+  } catch (error) {
+    console.warn("[playlist-metaobject-sync] discover app-owned theme type failed", error);
+  }
+
+  return null;
+}
+
 async function isThemePickerReady(shopDomain: string, accessToken: string) {
-  return definitionExists(shopDomain, accessToken, PLAYLIST_THEME_METAOBJECT_TYPE);
+  return Boolean(await discoverAppOwnedThemeMetaobjectType(shopDomain, accessToken));
 }
 
 async function resolveThemePickerMetaobjectType(
   shopDomain: string,
   accessToken: string,
 ): Promise<string | null> {
-  if (await isThemePickerReady(shopDomain, accessToken)) {
-    return PLAYLIST_THEME_METAOBJECT_TYPE;
-  }
-  return null;
+  return discoverAppOwnedThemeMetaobjectType(shopDomain, accessToken);
 }
 
 async function hasAppOwnedPlaylistDefinition(shopDomain: string, accessToken: string) {
@@ -419,7 +449,7 @@ async function createPlaylistMetaobjectDefinition(
 
 /**
  * Ensures the metaobject definition required by the theme block picker exists.
- * Theme schema uses merchant type `vinci_playlist`, created via Admin API when missing.
+ * Theme schema uses app-owned type `app--{numericAppId}--vinci_playlist` from TOML deploy.
  */
 export async function ensurePlaylistMetaobjectDefinitionForShop(
   shopDomain: string,
@@ -429,35 +459,37 @@ export async function ensurePlaylistMetaobjectDefinitionForShop(
   return result.ready;
 }
 
-/** Creates the merchant-owned definition used by the theme picker. */
+/** Ensures the app-owned theme picker definition exists (from deploy or $app GraphQL create). */
 export async function provisionThemePlaylistPicker(
   shopDomain: string,
   accessToken: string,
 ): Promise<ThemePickerProvisionResult> {
   const createErrors: string[] = [];
 
-  if (await isThemePickerReady(shopDomain, accessToken)) {
+  const existing = await discoverAppOwnedThemeMetaobjectType(shopDomain, accessToken);
+  if (existing) {
     return {
       ready: true,
-      definitionType: PLAYLIST_THEME_METAOBJECT_TYPE,
+      definitionType: existing,
       createErrors: [],
       syncedTypes: [],
     };
   }
 
-  const merchant = await createPlaylistMetaobjectDefinition(
+  const appOwned = await createPlaylistMetaobjectDefinition(
     shopDomain,
     accessToken,
-    PLAYLIST_MERCHANT_METAOBJECT_TYPE,
+    PLAYLIST_APP_OWNED_METAOBJECT_TYPE,
   );
-  if (!merchant.ok) {
-    createErrors.push(...merchant.errors);
+  if (!appOwned.ok) {
+    createErrors.push(...appOwned.errors);
   }
 
-  if (await isThemePickerReady(shopDomain, accessToken)) {
+  const afterCreate = await discoverAppOwnedThemeMetaobjectType(shopDomain, accessToken);
+  if (afterCreate) {
     return {
       ready: true,
-      definitionType: PLAYLIST_THEME_METAOBJECT_TYPE,
+      definitionType: afterCreate,
       createErrors,
       syncedTypes: [],
     };
@@ -467,8 +499,10 @@ export async function provisionThemePlaylistPicker(
     "[playlist-metaobject-sync] Theme picker definition still missing for",
     shopDomain,
     "expected",
-    PLAYLIST_THEME_METAOBJECT_TYPE,
-    createErrors.length ? createErrors.join("; ") : "check write_metaobject_definitions scope",
+    PLAYLIST_APP_THEME_METAOBJECT_TYPE,
+    createErrors.length
+      ? createErrors.join("; ")
+      : "run shopify app deploy and have the merchant update the app in Admin → Apps",
   );
 
   return {
@@ -509,7 +543,9 @@ export async function setupThemePlaylistPickerForShop(
   const provision = await provisionThemePlaylistPicker(shopDomain, accessToken);
   await syncPlaylistMetaobjectsForShop(shopId, overrides);
   const types = await discoverPlaylistMetaobjectTypes(shopDomain, accessToken);
-  const definitionReady = provision.ready;
+  const activePickerType =
+    (await resolveThemePickerMetaobjectType(shopDomain, accessToken)) || provision.definitionType;
+  const definitionReady = Boolean(activePickerType);
   const hasLegacyMerchantDefinition = await hasAppOwnedPlaylistDefinition(shopDomain, accessToken);
   const playlistCount = await prisma.playlist.count({ where: { shopId } });
   const entryCount = await countThemePickerEntries(shopDomain, accessToken);
@@ -526,7 +562,7 @@ export async function setupThemePlaylistPickerForShop(
     definitionReady,
     needsAppUpdate: !definitionReady,
     hasLegacyMerchantDefinition,
-    expectedType: PLAYLIST_THEME_METAOBJECT_TYPE,
+    expectedType: activePickerType || PLAYLIST_THEME_METAOBJECT_TYPE,
     types,
     provisionErrors,
     entryCount,
@@ -677,15 +713,12 @@ async function listMetaobjectsOfType(
 }
 
 async function countThemePickerEntries(shopDomain: string, accessToken: string) {
-  if (!(await isThemePickerReady(shopDomain, accessToken))) {
+  const pickerType = await resolveThemePickerMetaobjectType(shopDomain, accessToken);
+  if (!pickerType) {
     return 0;
   }
   try {
-    const entries = await listMetaobjectsOfType(
-      shopDomain,
-      accessToken,
-      PLAYLIST_THEME_METAOBJECT_TYPE,
-    );
+    const entries = await listMetaobjectsOfType(shopDomain, accessToken, pickerType);
     return entries.length;
   } catch (error) {
     console.warn("[playlist-metaobject-sync] count theme picker entries failed", error);
