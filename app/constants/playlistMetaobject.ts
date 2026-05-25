@@ -11,6 +11,7 @@ export const PLAYLIST_APP_OWNED_METAOBJECT_TYPE = "$app:vinci_playlist";
 export const PLAYLIST_MERCHANT_METAOBJECT_TYPE = "vinci_playlist";
 
 /**
- * Theme block `metaobject_type` — must match carrousel-block.liquid and Shopify app-block docs.
+ * Theme block `metaobject_type` — must match carrousel-block.liquid.
+ * Merchant-owned type is provisioned via Admin API on every store (no deploy required).
  */
-export const PLAYLIST_THEME_METAOBJECT_TYPE = PLAYLIST_APP_THEME_METAOBJECT_TYPE;
+export const PLAYLIST_THEME_METAOBJECT_TYPE = PLAYLIST_MERCHANT_METAOBJECT_TYPE;
