@@ -3,6 +3,7 @@
 
   /* ── helpers ── */
   var APP_WATERMARK_LABEL = 'Vinci Shoppable Videos';
+  var CAROUSEL_POWERED_BY_LABEL = 'Powered by Vinci Tools';
 
   function esc(str) {
     return String(str || '')
@@ -24,6 +25,13 @@
       return '';
     }
     return '<span class="crsl-watermark" aria-hidden="true">' + esc(resolveWatermarkLabel(root)) + '</span>';
+  }
+
+  function renderCarouselPoweredBy(root) {
+    if (!shouldShowWatermark(root)) {
+      return '';
+    }
+    return '<p class="crsl-powered-by">' + esc(CAROUSEL_POWERED_BY_LABEL) + '</p>';
   }
 
   /* ── lightbox ── */
@@ -508,7 +516,8 @@
           '<button type="button" class="crsl-controls__btn crsl-controls__btn--next" aria-label="Next slide">' +
             '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>' +
           '</button>' +
-        '</div>';
+        '</div>' +
+        renderCarouselPoweredBy(root);
 
       var cardsEls = Array.prototype.slice.call(root.querySelectorAll('.crsl-card'));
       var prevBtn = root.querySelector('.crsl-controls__btn--prev');
@@ -625,7 +634,8 @@
       (heading ? '<h3 class="crsl-heading">' + esc(heading) + '</h3>' : '') +
       '<div class="crsl-viewport crsl-viewport--layout2">' +
         '<div class="crsl-track crsl-track--layout2">' + cards + '</div>' +
-      '</div>';
+      '</div>' +
+      renderCarouselPoweredBy(root);
 
     var cardsEls = Array.prototype.slice.call(root.querySelectorAll('.crsl-card'));
 
