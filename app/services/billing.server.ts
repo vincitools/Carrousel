@@ -316,3 +316,32 @@ export function normalizePlanNameFromDb(planName: string | null | undefined) {
   if (value.includes("month") || value.includes("premium") || value.includes("pro")) return "premium_monthly";
   return "free";
 }
+
+/** Storefront free plan = no active paid subscription in DB (after optional Shopify sync). */
+export async function isShopOnFreePlan(
+  shopId: string,
+  shopDomain: string | null | undefined,
+  accessToken: string | null | undefined,
+) {
+  if (accessToken === "dev-token") {
+    return false;
+  }
+
+  if (shopDomain && accessToken) {
+    try {
+      await syncBillingSubscriptionForShop(shopId, shopDomain, accessToken);
+    } catch (error) {
+      console.warn("[billing] storefront plan sync failed", error);
+    }
+  }
+
+  const subscription = await prisma.billingSubscription.findUnique({
+    where: { shopId },
+    select: { planName: true, status: true },
+  });
+
+  const plan =
+    subscription?.status === "ACTIVE" ? normalizePlanNameFromDb(subscription.planName) : "free";
+
+  return plan === "free";
+}

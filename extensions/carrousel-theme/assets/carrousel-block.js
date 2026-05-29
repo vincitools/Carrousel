@@ -31,7 +31,24 @@
     if (!shouldShowWatermark(root)) {
       return '';
     }
-    return '<p class="crsl-powered-by">' + esc(CAROUSEL_POWERED_BY_LABEL) + '</p>';
+    return (
+      '<div class="crsl-attribution" role="note">' +
+        '<span class="crsl-powered-by">' + esc(CAROUSEL_POWERED_BY_LABEL) + '</span>' +
+      '</div>'
+    );
+  }
+
+  function renderControlsNav() {
+    return (
+      '<div class="crsl-controls__nav">' +
+        '<button type="button" class="crsl-controls__btn crsl-controls__btn--prev" aria-label="Previous slide">' +
+          '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>' +
+        '</button>' +
+        '<button type="button" class="crsl-controls__btn crsl-controls__btn--next" aria-label="Next slide">' +
+          '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>' +
+        '</button>' +
+      '</div>'
+    );
   }
 
   /* ── lightbox ── */
@@ -510,14 +527,9 @@
           '<div class="crsl-track">' + cards + '</div>' +
         '</div>' +
         '<div class="crsl-controls" aria-label="Carousel controls">' +
-          '<button type="button" class="crsl-controls__btn crsl-controls__btn--prev" aria-label="Previous slide">' +
-            '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>' +
-          '</button>' +
-          '<button type="button" class="crsl-controls__btn crsl-controls__btn--next" aria-label="Next slide">' +
-            '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>' +
-          '</button>' +
-        '</div>' +
-        renderCarouselPoweredBy(root);
+          renderControlsNav() +
+          renderCarouselPoweredBy(root) +
+        '</div>';
 
       var cardsEls = Array.prototype.slice.call(root.querySelectorAll('.crsl-card'));
       var prevBtn = root.querySelector('.crsl-controls__btn--prev');
@@ -635,7 +647,9 @@
       '<div class="crsl-viewport crsl-viewport--layout2">' +
         '<div class="crsl-track crsl-track--layout2">' + cards + '</div>' +
       '</div>' +
-      renderCarouselPoweredBy(root);
+      (shouldShowWatermark(root)
+        ? '<div class="crsl-controls crsl-controls--layout2">' + renderCarouselPoweredBy(root) + '</div>'
+        : '');
 
     var cardsEls = Array.prototype.slice.call(root.querySelectorAll('.crsl-card'));
 
@@ -709,8 +723,10 @@
           (inEditor ? (payload.error || 'No media matched the current settings yet.') : 'No media is available for this carousel.') +
           '</p></div>';
       } else {
-        root.dataset.showWatermark = payload.showWatermark ? 'true' : 'false';
+        var showWatermark = payload.showWatermark === true || payload.showWatermark === 'true';
+        root.dataset.showWatermark = showWatermark ? 'true' : 'false';
         root.dataset.watermarkLabel = payload.watermarkLabel || APP_WATERMARK_LABEL;
+        root.classList.toggle('carrousel-block--watermark', showWatermark);
         renderItems(root, payload.items, heading, layout);
       }
     } catch (err) {

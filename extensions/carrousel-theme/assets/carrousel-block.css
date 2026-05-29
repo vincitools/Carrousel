@@ -328,21 +328,54 @@
 .crsl-controls {
   align-items: center;
   display: flex;
+  flex-direction: column;
+  gap: 14px;
+  justify-content: center;
+  padding: 24px 20px 4px;
+  position: relative;
+  width: 100%;
+  z-index: 2;
+}
+
+.crsl-controls--layout2 {
+  padding-top: 16px;
+}
+
+.crsl-controls__nav {
+  align-items: center;
+  display: flex;
   gap: 34px;
   justify-content: center;
-  padding: 24px 20px 0;
 }
 
 /* Free plan — below carousel navigation */
-.crsl-powered-by {
-  color: #4b5563;
+.carrousel-block .crsl-attribution {
+  display: block !important;
+  margin: 0;
+  max-width: 100%;
+  padding: 0 20px 10px;
+  text-align: center;
+  visibility: visible !important;
+  width: 100%;
+}
+
+.carrousel-block .crsl-powered-by {
+  color: #4b5563 !important;
+  display: inline-block !important;
+  font-family: inherit;
   font-size: 0.875rem;
   font-weight: 500;
   letter-spacing: 0.01em;
   line-height: 1.35;
   margin: 0;
-  padding: 12px 20px 8px;
+  opacity: 1 !important;
+  padding: 0;
   text-align: center;
+  visibility: visible !important;
+}
+
+.carrousel-block--watermark .crsl-attribution:empty {
+  display: none !important;
 }
 
 .crsl-controls__btn {
