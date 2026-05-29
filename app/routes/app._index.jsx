@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLoaderData } from "react-router";
+import { useLoaderData, useRevalidator } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   Badge,
@@ -18,9 +18,19 @@ import { authenticate } from "../shopify.server";
 import { FreePlanUpgradeBanner } from "../components/FreePlanUpgradeBanner";
 import { requireShopDev } from "../utils/requireShopDev.server";
 import { isCarrouselBlockInstalledInMainTheme } from "../utils/themeCarrouselInstall.server";
+import { setupThemePlaylistPickerForShop } from "../services/playlistMetaobjectSync.server";
 import { normalizePlanNameFromDb } from "../utils/billingPlan";
+import { getEmbeddedHeaders } from "../utils/embedded-auth.client";
 import prisma from "../db.server";
 import { useI18n } from "../utils/i18n";
+
+const DEFAULT_THEME_PICKER = {
+  definitionReady: false,
+  entryCount: 0,
+  playlistCount: 0,
+  message: "",
+  types: [],
+};
 
 async function resolveIsFreePlan(shopId, shopDomain, accessToken) {
   if (accessToken === "dev-token") {
@@ -49,6 +59,7 @@ async function resolveIsFreePlan(shopId, shopDomain, accessToken) {
 
 export const loader = async ({ request }) => {
   let themeEditorUrl = "";
+  let themePicker = DEFAULT_THEME_PICKER;
 
   try {
     const { admin, session } = await authenticate.admin(request);
@@ -71,6 +82,13 @@ export const loader = async ({ request }) => {
       throw new Error("Shop not found");
     }
 
+    if (session.accessToken) {
+      themePicker = await setupThemePlaylistPickerForShop(shopId, {
+        shopDomain,
+        accessToken: session.accessToken,
+      });
+    }
+
     const [videoCount, taggedVideoCount, playlistCount, playlistEmbedded, isFreePlan] = await Promise.all([
       prisma.video.count({ where: { shopId } }),
       prisma.video.count({
@@ -86,14 +104,18 @@ export const loader = async ({ request }) => {
       resolveIsFreePlan(shopId, shopDomain, session.accessToken),
     ]);
 
+    const playlistPickerReady = themePicker.definitionReady && themePicker.entryCount > 0;
+
     return {
       themeEditorUrl,
       isFreePlan,
+      themePicker,
       onboarding: {
         appInstalled: true,
         contentAdded: videoCount > 0 && taggedVideoCount > 0,
         playlistCreated: playlistCount > 0,
         playlistEmbedded,
+        playlistPickerReady,
       },
     };
   } catch (error) {
@@ -119,25 +141,38 @@ export const loader = async ({ request }) => {
 
       const isFreePlan = await resolveIsFreePlan(shop.id, shop.shopDomain, shop.accessToken);
 
+      let themePickerFallback = DEFAULT_THEME_PICKER;
+      if (shop.accessToken && shop.accessToken !== "dev-token") {
+        themePickerFallback = await setupThemePlaylistPickerForShop(shop.id, {
+          shopDomain: shop.shopDomain,
+          accessToken: shop.accessToken,
+        });
+      }
+
       return {
         themeEditorUrl,
         isFreePlan,
+        themePicker: themePickerFallback,
         onboarding: {
           appInstalled: true,
           contentAdded: videoCount > 0 && taggedVideoCount > 0,
           playlistCreated: playlistCount > 0,
           playlistEmbedded: themeSettingsCount > 0,
+          playlistPickerReady:
+            themePickerFallback.definitionReady && themePickerFallback.entryCount > 0,
         },
       };
     } catch {
       return {
         themeEditorUrl,
         isFreePlan: true,
+        themePicker: DEFAULT_THEME_PICKER,
         onboarding: {
           appInstalled: true,
           contentAdded: false,
           playlistCreated: false,
           playlistEmbedded: false,
+          playlistPickerReady: false,
         },
       };
     }
@@ -145,21 +180,65 @@ export const loader = async ({ request }) => {
 };
 
 export default function Index() {
-  const { onboarding, themeEditorUrl, isFreePlan } = useLoaderData();
+  const { onboarding, themeEditorUrl, isFreePlan, themePicker: initialThemePicker } = useLoaderData();
+  const revalidator = useRevalidator();
   const { t } = useI18n();
+
+  const [themePicker, setThemePicker] = useState(initialThemePicker || DEFAULT_THEME_PICKER);
+  const [syncingThemePicker, setSyncingThemePicker] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
 
   const stepsDone = [
     onboarding.appInstalled,
     onboarding.contentAdded,
     onboarding.playlistCreated,
     onboarding.playlistEmbedded,
+    onboarding.playlistPickerReady,
   ];
 
   const completed = stepsDone.filter(Boolean).length;
   const progress = Math.round((completed / stepsDone.length) * 100);
 
   const [setupExpanded, setSetupExpanded] = useState(true);
-  const [openedStepIndex, setOpenedStepIndex] = useState(0);
+  const [openedStepIndex, setOpenedStepIndex] = useState(
+    onboarding.playlistPickerReady ? 0 : Math.max(0, stepsDone.findIndex((done) => !done)),
+  );
+
+  const syncThemePicker = async () => {
+    if (syncingThemePicker) return;
+    setSyncingThemePicker(true);
+    setSyncMessage("");
+    try {
+      const headers = await getEmbeddedHeaders();
+      const response = await fetch("/api/playlists/setup-theme", {
+        method: "POST",
+        headers,
+      });
+      const payload = await response.json();
+      if (payload) {
+        setThemePicker({
+          definitionReady: Boolean(payload.definitionReady),
+          entryCount: Number(payload.entryCount) || 0,
+          playlistCount: Number(payload.playlistCount) || 0,
+          message: payload.message || "",
+          types: Array.isArray(payload.types) ? payload.types : [],
+        });
+      }
+      if (payload?.definitionReady && Number(payload.entryCount) > 0) {
+        revalidator.revalidate();
+      } else {
+        setSyncMessage(
+          payload?.message || payload?.error || "Theme Editor playlist picker is not ready yet.",
+        );
+      }
+    } catch (error) {
+      console.error("[app._index] theme picker sync failed", error);
+      setSyncMessage("Could not sync playlists for the Theme Editor.");
+    } finally {
+      setSyncingThemePicker(false);
+    }
+  };
+
   const stepItems = [
     {
       title: t("Install Vinci Shoppable Videos"),
@@ -185,12 +264,23 @@ export default function Index() {
       href: "/app/playlists",
     },
     {
-      title: t("Show Playlists on Store Pages"),
-      description: t("Complete setup in the Theme Editor so playlists appear on your store pages."),
+      title: t("Add Carousel to Your Theme"),
+      description: t("Add the Vinci carousel app block in the Theme Editor on the pages where you want videos to appear."),
       done: onboarding.playlistEmbedded,
       ctaLabel: t("Open Theme Editor"),
       href: themeEditorUrl || "/app/playlists",
       external: Boolean(themeEditorUrl),
+    },
+    {
+      title: t("Select a Playlist in Theme Editor"),
+      description:
+        themePicker.message ||
+        t("Sync your playlists, then open the Theme Editor and choose a playlist in the carousel block settings."),
+      done: onboarding.playlistPickerReady,
+      ctaLabel: t("Open Theme Editor"),
+      href: themeEditorUrl || "/app/playlists",
+      external: Boolean(themeEditorUrl),
+      isPlaylistPickerStep: true,
     },
   ];
 
@@ -252,8 +342,34 @@ export default function Index() {
                             <Text as="p" variant="bodyMd" tone="subdued">
                               {step.description}
                             </Text>
-                            <InlineStack>
-                              {index === 0 ? null : (
+
+                            {step.isPlaylistPickerStep ? (
+                              <BlockStack gap="200">
+                                <Text as="p" variant="bodySm" tone="subdued">
+                                  Playlists in app: {themePicker.playlistCount} · Synced for picker:{" "}
+                                  {themePicker.entryCount}
+                                </Text>
+                                {syncMessage ? (
+                                  <Banner tone="warning">{syncMessage}</Banner>
+                                ) : null}
+                                <InlineStack gap="200">
+                                  <Button loading={syncingThemePicker} onClick={syncThemePicker}>
+                                    Sync for Theme Editor
+                                  </Button>
+                                  {themeEditorUrl ? (
+                                    <Button
+                                      url={themeEditorUrl}
+                                      external
+                                      target="_blank"
+                                      variant={step.done ? "secondary" : "primary"}
+                                    >
+                                      {step.done ? t("Open") : t(step.ctaLabel)}
+                                    </Button>
+                                  ) : null}
+                                </InlineStack>
+                              </BlockStack>
+                            ) : index === 0 ? null : (
+                              <InlineStack>
                                 <Button
                                   url={step.href}
                                   variant={step.done ? "secondary" : "primary"}
@@ -262,8 +378,8 @@ export default function Index() {
                                 >
                                   {step.done ? t("Open") : t(step.ctaLabel)}
                                 </Button>
-                              )}
-                            </InlineStack>
+                              </InlineStack>
+                            )}
                           </BlockStack>
                         ) : null}
                       </BlockStack>
@@ -274,7 +390,6 @@ export default function Index() {
             ) : null}
           </BlockStack>
         </Card>
-
       </BlockStack>
     </Page>
   );
