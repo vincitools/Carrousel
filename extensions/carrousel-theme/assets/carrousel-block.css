@@ -73,6 +73,52 @@
   width: 100%;
 }
 
+/* Layout 1 — slide/fade when user changes slides (multi-card desktop/tablet) */
+.carrousel-block:not(.carrousel-block--single-card) .crsl-viewport:not(.crsl-viewport--layout2) {
+  overflow: hidden;
+}
+
+.carrousel-block:not(.carrousel-block--single-card) .crsl-track {
+  transition: transform 0.36s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
+}
+
+/* Layout 1 — shared swap animation (track or single card) */
+.crsl-swap--exit-left {
+  opacity: 0 !important;
+  pointer-events: none;
+  transform: translateX(-14%) scale(0.97) !important;
+}
+
+.crsl-swap--exit-right {
+  opacity: 0 !important;
+  pointer-events: none;
+  transform: translateX(14%) scale(0.97) !important;
+}
+
+.crsl-swap--enter-right {
+  opacity: 0 !important;
+  transform: translateX(14%) scale(0.97) !important;
+}
+
+.crsl-swap--enter-left {
+  opacity: 0 !important;
+  transform: translateX(-14%) scale(0.97) !important;
+}
+
+.carrousel-block--is-transitioning .crsl-controls__btn {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .carrousel-block:not(.carrousel-block--single-card) .crsl-track,
+  .carrousel-block--single-card button.crsl-card:not(.crsl-card--layout2) {
+    transition: none;
+    will-change: auto;
+  }
+}
+
 /* ── card: shared (both layouts) ── */
 .carrousel-block button.crsl-card {
   appearance: none;
@@ -205,7 +251,7 @@
     flex: 0 0 auto;
     opacity: 1 !important;
     transform: none !important;
-    transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform 0.36s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.36s cubic-bezier(0.22, 1, 0.36, 1);
     width: min(300px, 84vw);
     will-change: transform, opacity;
   }
@@ -215,38 +261,20 @@
     transform: none !important;
   }
 
-  .carrousel-block--single-card button.crsl-card.crsl-card--mobile-exit-left {
-    opacity: 0 !important;
-    pointer-events: none;
-    transform: translateX(-24%) scale(0.96) !important;
+  .carrousel-block--single-card .crsl-swap--exit-left {
+    transform: translateX(-22%) scale(0.96) !important;
   }
 
-  .carrousel-block--single-card button.crsl-card.crsl-card--mobile-exit-right {
-    opacity: 0 !important;
-    pointer-events: none;
-    transform: translateX(24%) scale(0.96) !important;
+  .carrousel-block--single-card .crsl-swap--exit-right {
+    transform: translateX(22%) scale(0.96) !important;
   }
 
-  .carrousel-block--single-card button.crsl-card.crsl-card--mobile-enter-right {
-    opacity: 0 !important;
-    transform: translateX(24%) scale(0.96) !important;
+  .carrousel-block--single-card .crsl-swap--enter-right {
+    transform: translateX(22%) scale(0.96) !important;
   }
 
-  .carrousel-block--single-card button.crsl-card.crsl-card--mobile-enter-left {
-    opacity: 0 !important;
-    transform: translateX(-24%) scale(0.96) !important;
-  }
-
-  .carrousel-block--is-transitioning .crsl-controls__btn {
-    opacity: 0.5;
-    pointer-events: none;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .carrousel-block--single-card button.crsl-card:not(.crsl-card--layout2) {
-      transition: none;
-      will-change: auto;
-    }
+  .carrousel-block--single-card .crsl-swap--enter-left {
+    transform: translateX(-22%) scale(0.96) !important;
   }
 
   /* Fallback when container query units are unavailable */

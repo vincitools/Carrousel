@@ -40,7 +40,8 @@
   data-heading="{{ block.settings.heading | escape }}"
   data-heading-size="{{ block.settings.heading_size }}px"
   data-heading-align="{{ block.settings.heading_align }}"
-  data-layout="{{ block.settings.layout }}"
+  data-layout-desktop="{{ block.settings.layout }}"
+  data-layout-mobile="{{ block.settings.layout_mobile | default: block.settings.layout }}"
   data-source="{{ resolved_source | escape }}"
   data-playlist-handle="{{ resolved_playlist_handle | escape }}"
   data-product-id="{{ resolved_product_id }}"
@@ -190,9 +191,23 @@
       ]
     },
     {
+      "type": "header",
+      "content": "Layout"
+    },
+    {
       "type": "select",
       "id": "layout",
-      "label": "Layout",
+      "label": "Layout (desktop)",
+      "default": "layout1",
+      "options": [
+        { "value": "layout1", "label": "Layout 1: Central focus" },
+        { "value": "layout2", "label": "Layout 2: All autoplay" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "layout_mobile",
+      "label": "Layout (mobile)",
       "default": "layout1",
       "options": [
         { "value": "layout1", "label": "Layout 1: Central focus" },

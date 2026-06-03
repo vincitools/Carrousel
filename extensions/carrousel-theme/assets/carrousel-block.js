@@ -623,19 +623,20 @@
       root.classList.toggle('carrousel-block--is-transitioning', active);
     }
 
-    function runSingleCardTransition(direction) {
+    function buildTrackMarkup() {
+      return visibleIndexes()
+        .map(function (realIdx, slotIdx) {
+          return renderCard(items[realIdx], realIdx, slotIdx);
+        })
+        .join('');
+    }
+
+    function runAnimatedSwap(exitTarget, direction, mountNext, resolveEnterTarget) {
       if (root._crslTransitioning) return;
 
-      var track = root.querySelector('.crsl-track');
-      var oldCard = track && track.querySelector('.crsl-card');
-      if (!track || !oldCard) {
-        renderFrame(0);
-        return;
-      }
-
-      var exitClass = direction > 0 ? 'crsl-card--mobile-exit-left' : 'crsl-card--mobile-exit-right';
-      var enterClass = direction > 0 ? 'crsl-card--mobile-enter-right' : 'crsl-card--mobile-enter-left';
-      var duration = prefersReducedMotion() ? 0 : 340;
+      var exitClass = direction > 0 ? 'crsl-swap--exit-left' : 'crsl-swap--exit-right';
+      var enterClass = direction > 0 ? 'crsl-swap--enter-right' : 'crsl-swap--enter-left';
+      var duration = prefersReducedMotion() ? 0 : 360;
 
       setTransitioning(true);
       clearTransitionTimer();
@@ -645,40 +646,43 @@
         clearTransitionTimer();
       }
 
-      function mountNextCard() {
-        track.innerHTML = renderCard(items[currentCenterIndex], currentCenterIndex, centerSlot);
-        var newCard = track.querySelector('.crsl-card');
-        if (!newCard) {
-          finishTransition();
-          return;
-        }
+      function getEnterTarget() {
+        return typeof resolveEnterTarget === 'function' ? resolveEnterTarget() : exitTarget;
+      }
+
+      function runEnterPhase() {
+        mountNext();
 
         if (duration === 0) {
-          syncCenterPlayback([newCard]);
           finishTransition();
           return;
         }
 
-        newCard.classList.add(enterClass);
+        var enterTarget = getEnterTarget();
+        if (!enterTarget) {
+          finishTransition();
+          return;
+        }
+
+        enterTarget.classList.add(enterClass);
         requestAnimationFrame(function () {
           requestAnimationFrame(function () {
-            newCard.classList.remove(enterClass);
-            syncCenterPlayback([newCard]);
+            enterTarget.classList.remove(enterClass);
 
             var enterDone = false;
             function onEnterEnd(event) {
-              if (enterDone || event.target !== newCard) return;
+              if (enterDone || event.target !== enterTarget) return;
               if (event.propertyName !== 'transform' && event.propertyName !== 'opacity') return;
               enterDone = true;
-              newCard.removeEventListener('transitionend', onEnterEnd);
+              enterTarget.removeEventListener('transitionend', onEnterEnd);
               finishTransition();
             }
 
-            newCard.addEventListener('transitionend', onEnterEnd);
+            enterTarget.addEventListener('transitionend', onEnterEnd);
             root._crslAnimTimer = setTimeout(function () {
               if (!enterDone) {
                 enterDone = true;
-                newCard.removeEventListener('transitionend', onEnterEnd);
+                enterTarget.removeEventListener('transitionend', onEnterEnd);
                 finishTransition();
               }
             }, duration + 80);
@@ -687,28 +691,59 @@
       }
 
       if (duration === 0) {
-        mountNextCard();
+        runEnterPhase();
         return;
       }
 
       var exitDone = false;
       function onExitEnd(event) {
-        if (exitDone || event.target !== oldCard) return;
+        if (exitDone || event.target !== exitTarget) return;
         if (event.propertyName !== 'transform' && event.propertyName !== 'opacity') return;
         exitDone = true;
-        oldCard.removeEventListener('transitionend', onExitEnd);
-        mountNextCard();
+        exitTarget.removeEventListener('transitionend', onExitEnd);
+        exitTarget.classList.remove(exitClass);
+        runEnterPhase();
       }
 
-      oldCard.classList.add(exitClass);
-      oldCard.addEventListener('transitionend', onExitEnd);
+      exitTarget.classList.add(exitClass);
+      exitTarget.addEventListener('transitionend', onExitEnd);
       root._crslAnimTimer = setTimeout(function () {
         if (!exitDone) {
           exitDone = true;
-          oldCard.removeEventListener('transitionend', onExitEnd);
-          mountNextCard();
+          exitTarget.removeEventListener('transitionend', onExitEnd);
+          exitTarget.classList.remove(exitClass);
+          runEnterPhase();
         }
       }, duration + 80);
+    }
+
+    function runLayout1Transition(direction) {
+      var track = root.querySelector('.crsl-track');
+      if (!track || !track.querySelector('.crsl-card')) {
+        renderFrame(0);
+        return;
+      }
+
+      if (singleCardMode) {
+        var oldCard = track.querySelector('.crsl-card');
+        runAnimatedSwap(
+          oldCard,
+          direction,
+          function () {
+            track.innerHTML = renderCard(items[currentCenterIndex], currentCenterIndex, centerSlot);
+            syncCenterPlayback(Array.prototype.slice.call(track.querySelectorAll('.crsl-card')));
+          },
+          function () {
+            return track.querySelector('.crsl-card');
+          }
+        );
+        return;
+      }
+
+      runAnimatedSwap(track, direction, function () {
+        track.innerHTML = buildTrackMarkup();
+        syncCenterPlayback(Array.prototype.slice.call(track.querySelectorAll('.crsl-card')));
+      });
     }
 
     function bindLayout1Interactions() {
@@ -753,48 +788,25 @@
       clearTransitionTimer();
 
       var track = root.querySelector('.crsl-track');
-      if (singleCardMode && animateDirection && track && track.querySelector('.crsl-card')) {
-        runSingleCardTransition(animateDirection);
+      if (animateDirection && track && track.querySelector('.crsl-card')) {
+        runLayout1Transition(animateDirection);
         return;
       }
 
       setTransitioning(false);
 
-      var indexes = visibleIndexes();
-      var cards = indexes.map(function (realIdx, slotIdx) {
-        return renderCard(items[realIdx], realIdx, slotIdx);
-      }).join('');
-
       root.innerHTML =
         (heading ? '<h3 class="crsl-heading">' + esc(heading) + '</h3>' : '') +
         '<div class="crsl-viewport">' +
-          '<div class="crsl-track">' + cards + '</div>' +
+          '<div class="crsl-track">' + buildTrackMarkup() + '</div>' +
         '</div>' +
         '<div class="crsl-controls" aria-label="Carousel controls">' +
           renderControlsNav() +
           renderCarouselPoweredBy(root) +
         '</div>';
 
-      var cardsEls = Array.prototype.slice.call(root.querySelectorAll('.crsl-card'));
-
-      if (animateDirection && !singleCardMode) {
-        var animClass = animateDirection > 0 ? 'crsl-card--anim-next' : 'crsl-card--anim-prev';
-        cardsEls.forEach(function (card) {
-          card.classList.add(animClass);
-        });
-        root.offsetWidth;
-        requestAnimationFrame(function () {
-          root._crslAnimTimer = setTimeout(function () {
-            root._crslAnimTimer = null;
-            Array.prototype.slice.call(root.querySelectorAll('.crsl-card')).forEach(function (card) {
-              card.classList.remove('crsl-card--anim-next', 'crsl-card--anim-prev');
-            });
-          }, 320);
-        });
-      }
-
       bindLayout1Interactions();
-      syncCenterPlayback(cardsEls);
+      syncCenterPlayback(Array.prototype.slice.call(root.querySelectorAll('.crsl-card')));
     }
 
     renderFrame(0);
@@ -883,6 +895,44 @@
     syncAllPlayback(cardsEls);
   }
 
+  function normalizeLayoutValue(value) {
+    return value === 'layout2' ? 'layout2' : 'layout1';
+  }
+
+  function resolveActiveLayout(root) {
+    var desktop = root.dataset.layoutDesktop || root.dataset.layout || 'layout1';
+    var mobile = root.dataset.layoutMobile || desktop;
+    var useMobile = Boolean(
+      window.matchMedia && window.matchMedia('(max-width: 749px)').matches
+    );
+    return normalizeLayoutValue(useMobile ? mobile : desktop);
+  }
+
+  function bindLayoutResize(root) {
+    if (root._crslResizeBound) return;
+    root._crslResizeBound = true;
+
+    var resizeTimer = null;
+    window.addEventListener('resize', function () {
+      if (!root._crslPayload) return;
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        var nextLayout = resolveActiveLayout(root);
+        if (nextLayout === root._crslActiveLayout) return;
+
+        root._crslActiveLayout = nextLayout;
+        root._crslLayout1Delegated = false;
+        root._crslTransitioning = false;
+        root.classList.remove('carrousel-block--single-card', 'carrousel-block--is-transitioning');
+        var showWatermark =
+          root._crslPayload.showWatermark === true || root._crslPayload.showWatermark === 'true';
+        root.dataset.showWatermark = showWatermark ? 'true' : 'false';
+        root.classList.toggle('carrousel-block--watermark', showWatermark);
+        renderItems(root, root._crslPayload.items, root._crslHeading || '', nextLayout);
+      }, 160);
+    });
+  }
+
   /* ── hydrate ── */
 
   async function hydrate(root) {
@@ -895,7 +945,7 @@
     var productId = root.dataset.productId || '';
     var limit     = root.dataset.limit     || '12';
     var heading   = root.dataset.heading   || '';
-    var layout    = root.dataset.layout    || 'layout1';
+    var layout    = resolveActiveLayout(root);
 
     var headingColor          = root.dataset.headingColor          || '';
     var headingSize           = root.dataset.headingSize           || '';
@@ -947,7 +997,11 @@
         root.dataset.showWatermark = showWatermark ? 'true' : 'false';
         root.dataset.watermarkLabel = payload.watermarkLabel || APP_WATERMARK_LABEL;
         root.classList.toggle('carrousel-block--watermark', showWatermark);
+        root._crslPayload = payload;
+        root._crslHeading = heading;
+        root._crslActiveLayout = layout;
         renderItems(root, payload.items, heading, layout);
+        bindLayoutResize(root);
       }
     } catch (err) {
       console.error('[carrousel-block]', err);
@@ -964,6 +1018,8 @@
   document.addEventListener('shopify:section:load', function () {
     document.querySelectorAll('[data-carrousel-block]').forEach(function (el) {
       el.dataset.initialized = '';
+      el._crslResizeBound = false;
+      el._crslLayout1Delegated = false;
       hydrate(el);
     });
   });
