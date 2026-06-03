@@ -605,11 +605,160 @@
       });
     }
 
-    function renderFrame(animateDirection) {
+    function prefersReducedMotion() {
+      return Boolean(
+        window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      );
+    }
+
+    function clearTransitionTimer() {
       if (root._crslAnimTimer) {
         clearTimeout(root._crslAnimTimer);
         root._crslAnimTimer = null;
       }
+    }
+
+    function setTransitioning(active) {
+      root._crslTransitioning = active;
+      root.classList.toggle('carrousel-block--is-transitioning', active);
+    }
+
+    function runSingleCardTransition(direction) {
+      if (root._crslTransitioning) return;
+
+      var track = root.querySelector('.crsl-track');
+      var oldCard = track && track.querySelector('.crsl-card');
+      if (!track || !oldCard) {
+        renderFrame(0);
+        return;
+      }
+
+      var exitClass = direction > 0 ? 'crsl-card--mobile-exit-left' : 'crsl-card--mobile-exit-right';
+      var enterClass = direction > 0 ? 'crsl-card--mobile-enter-right' : 'crsl-card--mobile-enter-left';
+      var duration = prefersReducedMotion() ? 0 : 340;
+
+      setTransitioning(true);
+      clearTransitionTimer();
+
+      function finishTransition() {
+        setTransitioning(false);
+        clearTransitionTimer();
+      }
+
+      function mountNextCard() {
+        track.innerHTML = renderCard(items[currentCenterIndex], currentCenterIndex, centerSlot);
+        var newCard = track.querySelector('.crsl-card');
+        if (!newCard) {
+          finishTransition();
+          return;
+        }
+
+        if (duration === 0) {
+          syncCenterPlayback([newCard]);
+          finishTransition();
+          return;
+        }
+
+        newCard.classList.add(enterClass);
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            newCard.classList.remove(enterClass);
+            syncCenterPlayback([newCard]);
+
+            var enterDone = false;
+            function onEnterEnd(event) {
+              if (enterDone || event.target !== newCard) return;
+              if (event.propertyName !== 'transform' && event.propertyName !== 'opacity') return;
+              enterDone = true;
+              newCard.removeEventListener('transitionend', onEnterEnd);
+              finishTransition();
+            }
+
+            newCard.addEventListener('transitionend', onEnterEnd);
+            root._crslAnimTimer = setTimeout(function () {
+              if (!enterDone) {
+                enterDone = true;
+                newCard.removeEventListener('transitionend', onEnterEnd);
+                finishTransition();
+              }
+            }, duration + 80);
+          });
+        });
+      }
+
+      if (duration === 0) {
+        mountNextCard();
+        return;
+      }
+
+      var exitDone = false;
+      function onExitEnd(event) {
+        if (exitDone || event.target !== oldCard) return;
+        if (event.propertyName !== 'transform' && event.propertyName !== 'opacity') return;
+        exitDone = true;
+        oldCard.removeEventListener('transitionend', onExitEnd);
+        mountNextCard();
+      }
+
+      oldCard.classList.add(exitClass);
+      oldCard.addEventListener('transitionend', onExitEnd);
+      root._crslAnimTimer = setTimeout(function () {
+        if (!exitDone) {
+          exitDone = true;
+          oldCard.removeEventListener('transitionend', onExitEnd);
+          mountNextCard();
+        }
+      }, duration + 80);
+    }
+
+    function bindLayout1Interactions() {
+      if (root._crslLayout1Delegated) return;
+      root._crslLayout1Delegated = true;
+
+      root.addEventListener('click', function (event) {
+        if (root._crslTransitioning) return;
+
+        if (event.target.closest('.crsl-controls__btn--prev')) {
+          event.preventDefault();
+          currentCenterIndex = modulo(currentCenterIndex - 1, total);
+          renderFrame(-1);
+          return;
+        }
+
+        if (event.target.closest('.crsl-controls__btn--next')) {
+          event.preventDefault();
+          currentCenterIndex = modulo(currentCenterIndex + 1, total);
+          renderFrame(1);
+          return;
+        }
+
+        var cardBtn = event.target.closest('.crsl-card');
+        if (!cardBtn || !root.contains(cardBtn)) return;
+
+        var realIdx = parseInt(cardBtn.dataset.realIdx, 10);
+        if (isNaN(realIdx)) return;
+
+        if (!singleCardMode && realIdx !== currentCenterIndex) {
+          var direction = signedShortestDelta(currentCenterIndex, realIdx, total);
+          currentCenterIndex = realIdx;
+          renderFrame(direction >= 0 ? 1 : -1);
+          return;
+        }
+
+        openLightbox(root, items, realIdx);
+      });
+    }
+
+    function renderFrame(animateDirection) {
+      clearTransitionTimer();
+
+      var track = root.querySelector('.crsl-track');
+      if (singleCardMode && animateDirection && track && track.querySelector('.crsl-card')) {
+        runSingleCardTransition(animateDirection);
+        return;
+      }
+
+      setTransitioning(false);
 
       var indexes = visibleIndexes();
       var cards = indexes.map(function (realIdx, slotIdx) {
@@ -627,8 +776,6 @@
         '</div>';
 
       var cardsEls = Array.prototype.slice.call(root.querySelectorAll('.crsl-card'));
-      var prevBtn = root.querySelector('.crsl-controls__btn--prev');
-      var nextBtn = root.querySelector('.crsl-controls__btn--next');
 
       if (animateDirection && !singleCardMode) {
         var animClass = animateDirection > 0 ? 'crsl-card--anim-next' : 'crsl-card--anim-prev';
@@ -646,29 +793,7 @@
         });
       }
 
-      prevBtn.addEventListener('click', function () {
-        currentCenterIndex = modulo(currentCenterIndex - 1, total);
-        renderFrame(-1);
-      });
-
-      nextBtn.addEventListener('click', function () {
-        currentCenterIndex = modulo(currentCenterIndex + 1, total);
-        renderFrame(1);
-      });
-
-      cardsEls.forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var realIdx = parseInt(btn.dataset.realIdx, 10);
-          if (realIdx !== currentCenterIndex) {
-            var direction = signedShortestDelta(currentCenterIndex, realIdx, total);
-            currentCenterIndex = realIdx;
-            renderFrame(direction >= 0 ? 1 : -1);
-            return;
-          }
-          openLightbox(root, items, realIdx);
-        });
-      });
-
+      bindLayout1Interactions();
       syncCenterPlayback(cardsEls);
     }
 
