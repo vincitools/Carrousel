@@ -47,6 +47,9 @@
   data-limit="{{ block.settings.media_limit }}"
   class="carrousel-block"
   style="
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
     --carrousel-bg: {{ block.settings.background_color }};
     --carrousel-card-bg: {{ block.settings.card_background }};
     --carrousel-text: {{ block.settings.text_color }};

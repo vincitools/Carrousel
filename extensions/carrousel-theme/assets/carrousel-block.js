@@ -204,6 +204,10 @@
     }
   }
 
+  function isMobileLightbox() {
+    return typeof window !== 'undefined' && window.innerWidth < 860;
+  }
+
   function openLightbox(root, items, startIndex) {
     closeLightbox();
     document.body.style.overflow = 'hidden';
@@ -211,6 +215,9 @@
     var activeIndex = startIndex;
     var isMuted = true;
     var trackedPlayByVideo = Object.create(null);
+    var touchStartY = 0;
+    var touchStartX = 0;
+    var touchStartTime = 0;
 
     function stripLegacySideArtifacts() {
       if (!_lb) return;
@@ -234,66 +241,109 @@
       return '<img class="crsl-lb__video" src="' + esc(item.url || item.thumbnail || '') + '" alt="' + esc(item.title) + '">';
     }
 
-    function renderProductPane(item) {
+    function renderOverlayTop() {
+      return (
+        '<div class="crsl-lb__overlay-top">' +
+          '<span class="crsl-lb__title">Powered by Vinci Shoppable Videos</span>' +
+          '<div class="crsl-lb__top-actions">' +
+            '<button type="button" class="crsl-lb__btn crsl-lb__mute-btn" aria-label="Toggle sound">' +
+              '<svg class="crsl-icon-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:' + (isMuted ? '' : 'none') + '"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>' +
+              '<svg class="crsl-icon-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:' + (isMuted ? 'none' : '') + '"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>' +
+            '</button>' +
+            '<button type="button" class="crsl-lb__btn crsl-lb__close-btn" aria-label="Close">' +
+              '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+            '</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }
+
+    function renderOverlayShopActions(item) {
       var linked = item.linkedProduct || null;
-      if (!linked) return '<aside class="crsl-lb__product-pane" data-lightbox-product></aside>';
+      if (!linked) return '';
 
       return (
-        '<aside class="crsl-lb__product-pane" data-lightbox-product>' +
-          '<div class="crsl-lb__product-card">' +
-            '<div class="crsl-lb__product-image-wrap">' +
-              '<img class="crsl-lb__product-image" src="' + esc(linked.image || item.thumbnail || '') + '" alt="' + esc(linked.title) + '">' +
-            '</div>' +
-            '<h4 class="crsl-lb__product-title">' + esc(linked.title) + '</h4>' +
-            '<div class="crsl-lb__price-row">' +
-              '<span class="crsl-lb__price">' + esc(normalizePrice(linked.price)) + '</span>' +
-              (linked.compareAtPrice ? '<span class="crsl-lb__compare">' + esc(normalizePrice(linked.compareAtPrice)) + '</span>' : '') +
-            '</div>' +
-            '<div class="crsl-lb__product-desc" data-product-desc></div>' +
-            '<div class="crsl-lb__actions">' +
-              '<button type="button" class="crsl-lb__add-btn" data-handle="' + esc(linked.handle) + '">ADD TO CART</button>' +
-              '<a class="crsl-lb__shop-btn" href="' + esc(linked.url || '/collections/all') + '">VIEW PRODUCT</a>' +
-            '</div>' +
-          '</div>' +
-        '</aside>'
+        '<div class="crsl-lb__overlay-actions">' +
+          '<button type="button" class="crsl-lb__add-btn crsl-lb__add-btn--overlay" data-handle="' + esc(linked.handle) + '">ADD TO CART</button>' +
+          '<a class="crsl-lb__shop-btn crsl-lb__shop-btn--overlay" href="' + esc(linked.url || '/collections/all') + '">READ MORE</a>' +
+        '</div>'
       );
+    }
+
+    function renderProductPaneContent(item) {
+      var linked = item.linkedProduct || null;
+      if (!linked) return '';
+
+      return (
+        '<div class="crsl-lb__product-card">' +
+          '<div class="crsl-lb__product-image-wrap">' +
+            '<img class="crsl-lb__product-image" src="' + esc(linked.image || item.thumbnail || '') + '" alt="' + esc(linked.title) + '">' +
+          '</div>' +
+          '<h4 class="crsl-lb__product-title">' + esc(linked.title) + '</h4>' +
+          '<div class="crsl-lb__price-row">' +
+            '<span class="crsl-lb__price">' + esc(normalizePrice(linked.price)) + '</span>' +
+            (linked.compareAtPrice ? '<span class="crsl-lb__compare">' + esc(normalizePrice(linked.compareAtPrice)) + '</span>' : '') +
+          '</div>' +
+          '<div class="crsl-lb__product-desc" data-product-desc></div>' +
+          '<div class="crsl-lb__actions">' +
+            '<button type="button" class="crsl-lb__add-btn" data-handle="' + esc(linked.handle) + '">ADD TO CART</button>' +
+            '<a class="crsl-lb__shop-btn" href="' + esc(linked.url || '/collections/all') + '">VIEW PRODUCT</a>' +
+          '</div>' +
+        '</div>'
+      );
+    }
+
+    function goToVideo(delta) {
+      if (items.length < 2 || !delta) return;
+      activeIndex = (activeIndex + delta + items.length) % items.length;
+      updateLightbox();
     }
 
     function updateLightbox() {
       var item = items[activeIndex];
+      var mobile = isMobileLightbox();
       var frame = _lb.querySelector('.crsl-lb__frame');
       var mediaWrap = _lb.querySelector('[data-lightbox-media]');
       var productPane = _lb.querySelector('[data-lightbox-product]');
-      var overlayTitle = '<div class="crsl-lb__overlay">' +
-          '<div class="crsl-lb__overlay-top">' +
-            '<span class="crsl-lb__title">Powered by Vinci Shoppable Videos</span>' +
-            '<div class="crsl-lb__top-actions">' +
-              '<button type="button" class="crsl-lb__btn crsl-lb__mute-btn" aria-label="Toggle sound">' +
-                '<svg class="crsl-icon-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:' + (isMuted ? '' : 'none') + '"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>' +
-                '<svg class="crsl-icon-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:' + (isMuted ? 'none' : '') + '"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>' +
-              '</button>' +
-              '<button type="button" class="crsl-lb__btn crsl-lb__close-btn" aria-label="Close">' +
-                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
-              '</button>' +
-            '</div>' +
-          '</div>' +
+      var overlayHtml =
+        '<div class="crsl-lb__overlay">' +
+          renderOverlayTop() +
+          (mobile ? renderOverlayShopActions(item) : '') +
         '</div>';
 
-      mediaWrap.innerHTML = renderMedia(item) + overlayTitle;
-      productPane.innerHTML = renderProductPane(item).replace(/^(<aside[^>]*>)([\s\S]*)(<\/aside>)$/, '$2');
-      if (frame) {
-        frame.classList.toggle('crsl-lb__frame--media-only', !item.linkedProduct);
-      }
-      stripLegacySideArtifacts();
+      _lb.classList.toggle('crsl-lb--mobile-fullscreen', mobile);
+      _lb.classList.toggle('crsl-lb--has-shop-actions', mobile && Boolean(item.linkedProduct));
 
-      if (item.linkedProduct) {
-        var descContainer = productPane.querySelector('[data-product-desc]');
-        var initialPreview = getDescriptionPreview(item.linkedProduct.description || '', 240);
-        renderDescription(descContainer, initialPreview, item.linkedProduct.url || '/collections/all');
-        if (!initialPreview && item.linkedProduct.handle) {
-          hydrateProductDescription(item.linkedProduct.handle, item.linkedProduct.url || ('/products/' + item.linkedProduct.handle), descContainer);
+      mediaWrap.innerHTML = renderMedia(item) + overlayHtml;
+
+      if (mobile) {
+        productPane.innerHTML = '';
+        if (frame) {
+          frame.classList.add('crsl-lb__frame--mobile');
+          frame.classList.toggle('crsl-lb__frame--media-only', true);
+        }
+      } else {
+        productPane.innerHTML = renderProductPaneContent(item);
+        if (frame) {
+          frame.classList.remove('crsl-lb__frame--mobile');
+          frame.classList.toggle('crsl-lb__frame--media-only', !item.linkedProduct);
+        }
+
+        if (item.linkedProduct) {
+          var descContainer = productPane.querySelector('[data-product-desc]');
+          var initialPreview = getDescriptionPreview(item.linkedProduct.description || '', 240);
+          renderDescription(descContainer, initialPreview, item.linkedProduct.url || '/collections/all');
+          if (!initialPreview && item.linkedProduct.handle) {
+            hydrateProductDescription(
+              item.linkedProduct.handle,
+              item.linkedProduct.url || ('/products/' + item.linkedProduct.handle),
+              descContainer
+            );
+          }
         }
       }
+
+      stripLegacySideArtifacts();
 
       if (item.id && !trackedPlayByVideo[item.id]) {
         trackedPlayByVideo[item.id] = true;
@@ -385,6 +435,36 @@
     }
 
     document.addEventListener('keydown', onKey);
+
+    function onTouchStart(event) {
+      if (!event.touches || !event.touches[0]) return;
+      touchStartY = event.touches[0].clientY;
+      touchStartX = event.touches[0].clientX;
+      touchStartTime = Date.now();
+    }
+
+    function onTouchEnd(event) {
+      if (!isMobileLightbox() || items.length < 2) return;
+      if (!event.changedTouches || !event.changedTouches[0]) return;
+      if (event.target.closest('.crsl-lb__overlay-actions, .crsl-lb__top-actions, .crsl-lb__btn')) return;
+
+      var touch = event.changedTouches[0];
+      var deltaY = touch.clientY - touchStartY;
+      var deltaX = touch.clientX - touchStartX;
+      if (Math.abs(deltaX) > Math.abs(deltaY)) return;
+      if (Math.abs(deltaY) < 52) return;
+      if (Date.now() - touchStartTime > 900) return;
+
+      if (deltaY < 0) {
+        goToVideo(1);
+      } else {
+        goToVideo(-1);
+      }
+    }
+
+    _lb.addEventListener('touchstart', onTouchStart, { passive: true });
+    _lb.addEventListener('touchend', onTouchEnd, { passive: true });
+
     updateLightbox();
     stripLegacySideArtifacts();
   }
@@ -402,8 +482,18 @@
     renderLayout1(root, items, heading);
   }
 
-  function pickOddVisibleCount(total) {
-    var cap = 6;
+  function getLayout1VisibleCap() {
+    if (typeof window === 'undefined') {
+      return 6;
+    }
+    var w = window.innerWidth || 1200;
+    if (w < 750) return 3;
+    if (w < 990) return 5;
+    return 6;
+  }
+
+  function pickOddVisibleCount(total, maxCap) {
+    var cap = typeof maxCap === 'number' ? maxCap : 6;
     if (total <= 0) {
       return 0;
     }
@@ -424,7 +514,8 @@
       return;
     }
 
-    var visibleCount = pickOddVisibleCount(total);
+    var visibleCount = pickOddVisibleCount(total, getLayout1VisibleCap());
+    root.style.setProperty('--crsl-visible-slots', String(visibleCount));
     var centerSlot = Math.floor(visibleCount / 2);
     var currentCenterIndex = 0;
 
