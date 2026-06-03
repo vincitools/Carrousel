@@ -472,7 +472,7 @@
   /* ── render strip ── */
   function renderItems(root, items, heading, layout) {
     if (layout === 'layout2') {
-      root.classList.remove('carrousel-block--fullstrip');
+      root.classList.remove('carrousel-block--fullstrip', 'carrousel-block--single-card');
       renderLayout2(root, items, heading);
       return;
     }
@@ -486,8 +486,10 @@
     if (typeof window === 'undefined') {
       return 6;
     }
+    if (window.matchMedia && window.matchMedia('(max-width: 749px)').matches) {
+      return 1;
+    }
     var w = window.innerWidth || 1200;
-    if (w < 750) return 3;
     if (w < 990) return 5;
     return 6;
   }
@@ -515,7 +517,9 @@
     }
 
     var visibleCount = pickOddVisibleCount(total, getLayout1VisibleCap());
+    var singleCardMode = visibleCount === 1;
     root.style.setProperty('--crsl-visible-slots', String(visibleCount));
+    root.classList.toggle('carrousel-block--single-card', singleCardMode);
     var centerSlot = Math.floor(visibleCount / 2);
     var currentCenterIndex = 0;
 
@@ -626,7 +630,7 @@
       var prevBtn = root.querySelector('.crsl-controls__btn--prev');
       var nextBtn = root.querySelector('.crsl-controls__btn--next');
 
-      if (animateDirection) {
+      if (animateDirection && !singleCardMode) {
         var animClass = animateDirection > 0 ? 'crsl-card--anim-next' : 'crsl-card--anim-prev';
         cardsEls.forEach(function (card) {
           card.classList.add(animClass);

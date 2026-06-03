@@ -190,9 +190,35 @@
     padding-inline: max(12px, var(--carrousel-px, 16px));
   }
 
+  /* Layout 1 — one full-size card centered on mobile */
+  .carrousel-block--single-card .crsl-viewport:not(.crsl-viewport--layout2) {
+    padding: 14px 12px 18px;
+  }
+
+  .carrousel-block--single-card .crsl-track {
+    justify-content: center;
+  }
+
+  .carrousel-block--single-card button.crsl-card:not(.crsl-card--layout2) {
+    flex: 0 0 auto;
+    opacity: 1 !important;
+    transform: none !important;
+    width: min(300px, 84vw);
+  }
+
+  .carrousel-block--single-card button.crsl-card.crsl-card--active:not(.crsl-card--layout2) {
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+    transform: none !important;
+  }
+
+  .carrousel-block--single-card button.crsl-card.crsl-card--anim-next:not(.crsl-card--layout2),
+  .carrousel-block--single-card button.crsl-card.crsl-card--anim-prev:not(.crsl-card--layout2) {
+    --crsl-shift: 0;
+  }
+
   /* Fallback when container query units are unavailable */
   @supports not (width: 1cqi) {
-    .carrousel-block button.crsl-card:not(.crsl-card--layout2) {
+    .carrousel-block:not(.carrousel-block--single-card) button.crsl-card:not(.crsl-card--layout2) {
       width: min(
         118px,
         calc((100% - (var(--crsl-visible-slots, 3) - 1) * var(--crsl-card-gap, 8px)) / var(--crsl-visible-slots, 3))
