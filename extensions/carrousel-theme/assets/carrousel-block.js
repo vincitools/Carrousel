@@ -15,18 +15,6 @@
     return Boolean(root && root.dataset.showWatermark === 'true');
   }
 
-  function resolveWatermarkLabel(root) {
-    var label = root && root.dataset.watermarkLabel;
-    return label ? String(label) : APP_WATERMARK_LABEL;
-  }
-
-  function renderVideoWatermark(root) {
-    if (!shouldShowWatermark(root)) {
-      return '';
-    }
-    return '<span class="crsl-watermark" aria-hidden="true">' + esc(resolveWatermarkLabel(root)) + '</span>';
-  }
-
   function renderCarouselPoweredBy(root) {
     if (!shouldShowWatermark(root)) {
       return '';
@@ -36,6 +24,13 @@
         '<span class="crsl-powered-by">' + esc(CAROUSEL_POWERED_BY_LABEL) + '</span>' +
       '</div>'
     );
+  }
+
+  function renderLightboxPoweredBy(root) {
+    if (!shouldShowWatermark(root)) {
+      return '';
+    }
+    return '<span class="crsl-lb__title">Powered by Vinci Shoppable Videos</span>';
   }
 
   function renderControlsNav() {
@@ -234,8 +229,7 @@
     function renderMedia(item) {
       if (item.type === 'VIDEO') {
         return (
-          '<video class="crsl-lb__video" src="' + esc(item.url || '') + '" autoplay loop muted playsinline></video>' +
-          renderVideoWatermark(root)
+          '<video class="crsl-lb__video" src="' + esc(item.url || '') + '" autoplay loop muted playsinline></video>'
         );
       }
       return '<img class="crsl-lb__video" src="' + esc(item.url || item.thumbnail || '') + '" alt="' + esc(item.title) + '">';
@@ -244,7 +238,7 @@
     function renderOverlayTop() {
       return (
         '<div class="crsl-lb__overlay-top">' +
-          '<span class="crsl-lb__title">Powered by Vinci Shoppable Videos</span>' +
+          renderLightboxPoweredBy(root) +
           '<div class="crsl-lb__top-actions">' +
             '<button type="button" class="crsl-lb__btn crsl-lb__mute-btn" aria-label="Toggle sound">' +
               '<svg class="crsl-icon-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:' + (isMuted ? '' : 'none') + '"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>' +
@@ -561,7 +555,6 @@
           '<video class="crsl-card__media" src="' + esc(item.url || '') +
           '" poster="' + esc(item.thumbnail || '') +
           '" loop muted playsinline preload="metadata"></video>' +
-          renderVideoWatermark(root) +
           '</span>'
         : '<span class="crsl-card__media-wrap">' +
           '<img class="crsl-card__media" loading="lazy" src="' +
@@ -631,119 +624,213 @@
         .join('');
     }
 
-    function runAnimatedSwap(exitTarget, direction, mountNext, resolveEnterTarget) {
+    function mountTrackMarkup() {
+      var trackEl = root.querySelector('.crsl-track');
+      if (!trackEl) return;
+
+      if (singleCardMode) {
+        trackEl.innerHTML = renderCard(items[currentCenterIndex], currentCenterIndex, centerSlot);
+      } else {
+        trackEl.innerHTML = buildTrackMarkup();
+      }
+      syncCenterPlayback(Array.prototype.slice.call(trackEl.querySelectorAll('.crsl-card')));
+    }
+
+    function clearHandoffStage() {
+      var stage = root.querySelector('.crsl-handoff-stage');
+      if (stage) stage.remove();
+      var trackEl = root.querySelector('.crsl-track');
+      if (trackEl) trackEl.classList.remove('crsl-track--handoff-hidden');
+    }
+
+    function runFluidHandoff(direction) {
       if (root._crslTransitioning) return;
 
-      var exitClass = direction > 0 ? 'crsl-swap--exit-left' : 'crsl-swap--exit-right';
-      var enterClass = direction > 0 ? 'crsl-swap--enter-right' : 'crsl-swap--enter-left';
-      var duration = prefersReducedMotion() ? 0 : 360;
+      var viewport = root.querySelector('.crsl-viewport');
+      var track = root.querySelector('.crsl-track');
+      if (!viewport || !track) {
+        mountTrackMarkup();
+        return;
+      }
 
+      var cards = Array.prototype.slice.call(track.querySelectorAll('.crsl-card'));
+      if (!cards.length) {
+        mountTrackMarkup();
+        return;
+      }
+
+      var duration = prefersReducedMotion() ? 0 : 420;
       setTransitioning(true);
       clearTransitionTimer();
+      clearHandoffStage();
 
-      function finishTransition() {
+      if (duration === 0) {
+        mountTrackMarkup();
+        setTransitioning(false);
+        return;
+      }
+
+      var viewportRect = viewport.getBoundingClientRect();
+      var slotRects = cards.map(function (card) {
+        var rect = card.getBoundingClientRect();
+        var layoutW = Math.max(card.offsetWidth, 1);
+        var layoutH = Math.max(card.offsetHeight, 1);
+        return {
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+          layoutW: layoutW,
+          layoutH: layoutH,
+          scale: rect.width / layoutW,
+        };
+      });
+
+      function placeCard(el, slot) {
+        el.style.left = (slot.left - viewportRect.left) + 'px';
+        el.style.top = (slot.top - viewportRect.top) + 'px';
+        // Keep layout box = real card box so the white meta chip does not reflow.
+        el.style.width = slot.layoutW + 'px';
+        el.style.height = slot.layoutH + 'px';
+        el.style.transformOrigin = 'top left';
+        el.style.setProperty(
+          'transform',
+          'translate3d(0,0,0) scale(' + slot.scale + ')',
+          'important'
+        );
+      }
+
+      function moveCard(el, from, to) {
+        var dx = to.left - from.left;
+        var dy = to.top - from.top;
+        el.style.setProperty(
+          'transform',
+          'translate3d(' + dx + 'px,' + dy + 'px,0) scale(' + to.scale + ')',
+          'important'
+        );
+      }
+
+      var stage = document.createElement('div');
+      stage.className = 'crsl-handoff-stage';
+      stage.setAttribute('aria-hidden', 'true');
+
+      var movers = [];
+      var leadClone = null;
+
+      // Shift every visible card by one slot; hide the live track so nothing is left behind.
+      for (var slot = 0; slot < cards.length; slot += 1) {
+        var sourceRect = slotRects[slot];
+        var destSlot = slot - direction;
+        var clone = cards[slot].cloneNode(true);
+        clone.removeAttribute('data-real-idx');
+        clone.classList.add('crsl-handoff-card');
+        clone.classList.remove('crsl-card--active', 'crsl-card--playing');
+        clone.setAttribute('tabindex', '-1');
+        placeCard(clone, sourceRect);
+        clone.style.setProperty('opacity', '1', 'important');
+        stage.appendChild(clone);
+
+        var move = { el: clone, destSlot: destSlot, sourceRect: sourceRect };
+        if (destSlot === centerSlot) leadClone = clone;
+        movers.push(move);
+      }
+
+      // New card enters the vacated edge slot.
+      var enterSlot = direction > 0 ? cards.length - 1 : 0;
+      var enterItemIdx = modulo(currentCenterIndex + (enterSlot - centerSlot), total);
+      var enterWrap = document.createElement('div');
+      enterWrap.innerHTML = renderCard(items[enterItemIdx], enterItemIdx, enterSlot);
+      var enterClone = enterWrap.firstElementChild;
+      if (enterClone) {
+        var edgeRect = slotRects[enterSlot];
+        var enterStart = {
+          left: edgeRect.left + (direction > 0 ? edgeRect.width + 16 : -(edgeRect.width + 16)),
+          top: edgeRect.top,
+          width: edgeRect.width,
+          height: edgeRect.height,
+          layoutW: edgeRect.layoutW,
+          layoutH: edgeRect.layoutH,
+          scale: edgeRect.scale,
+        };
+        enterClone.classList.add('crsl-handoff-card', 'crsl-handoff-card--edge');
+        enterClone.classList.remove('crsl-card--active');
+        enterClone.setAttribute('tabindex', '-1');
+        placeCard(enterClone, enterStart);
+        enterClone.style.setProperty('opacity', '1', 'important');
+        stage.appendChild(enterClone);
+        movers.push({
+          el: enterClone,
+          destSlot: enterSlot,
+          sourceRect: enterStart,
+        });
+        if (enterSlot === centerSlot) leadClone = enterClone;
+      }
+
+      viewport.appendChild(stage);
+
+      // Hide ALL live cards — this is what was leaving fixed "ghost" clones behind.
+      track.classList.add('crsl-track--handoff-hidden');
+      cards.forEach(function (card) {
+        card.classList.remove('crsl-card--active', 'crsl-card--playing');
+        var video = card.querySelector('video.crsl-card__media');
+        if (video) {
+          try { video.pause(); } catch (e) { /* ignore */ }
+        }
+      });
+
+      void stage.offsetWidth;
+
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          movers.forEach(function (move) {
+            var el = move.el;
+            if (move.destSlot >= 0 && move.destSlot < slotRects.length) {
+              var dest = slotRects[move.destSlot];
+              moveCard(el, move.sourceRect, dest);
+              if (move.destSlot === centerSlot) el.classList.add('crsl-card--active');
+              else el.classList.remove('crsl-card--active');
+              el.style.zIndex = move.destSlot === centerSlot ? '5' : '2';
+            } else {
+              var exitDx = direction > 0
+                ? -(move.sourceRect.width + 24)
+                : (move.sourceRect.width + 24);
+              el.style.setProperty(
+                'transform',
+                'translate3d(' + exitDx + 'px,0,0) scale(' + (move.sourceRect.scale * 0.92) + ')',
+                'important'
+              );
+              el.style.setProperty('opacity', '0', 'important');
+              el.style.zIndex = '1';
+            }
+          });
+        });
+      });
+
+      var finished = false;
+      function complete() {
+        if (finished) return;
+        finished = true;
+        clearHandoffStage();
+        track.classList.remove('crsl-track--handoff-hidden');
+        mountTrackMarkup();
         setTransitioning(false);
         clearTransitionTimer();
       }
 
-      function getEnterTarget() {
-        return typeof resolveEnterTarget === 'function' ? resolveEnterTarget() : exitTarget;
+      var watchEl = leadClone || enterClone || movers[0] && movers[0].el;
+      function onEnd(event) {
+        if (!watchEl || event.target !== watchEl) return;
+        if (event.propertyName !== 'transform') return;
+        watchEl.removeEventListener('transitionend', onEnd);
+        complete();
       }
 
-      function runEnterPhase() {
-        mountNext();
-
-        if (duration === 0) {
-          finishTransition();
-          return;
-        }
-
-        var enterTarget = getEnterTarget();
-        if (!enterTarget) {
-          finishTransition();
-          return;
-        }
-
-        enterTarget.classList.add(enterClass);
-        requestAnimationFrame(function () {
-          requestAnimationFrame(function () {
-            enterTarget.classList.remove(enterClass);
-
-            var enterDone = false;
-            function onEnterEnd(event) {
-              if (enterDone || event.target !== enterTarget) return;
-              if (event.propertyName !== 'transform' && event.propertyName !== 'opacity') return;
-              enterDone = true;
-              enterTarget.removeEventListener('transitionend', onEnterEnd);
-              finishTransition();
-            }
-
-            enterTarget.addEventListener('transitionend', onEnterEnd);
-            root._crslAnimTimer = setTimeout(function () {
-              if (!enterDone) {
-                enterDone = true;
-                enterTarget.removeEventListener('transitionend', onEnterEnd);
-                finishTransition();
-              }
-            }, duration + 80);
-          });
-        });
-      }
-
-      if (duration === 0) {
-        runEnterPhase();
-        return;
-      }
-
-      var exitDone = false;
-      function onExitEnd(event) {
-        if (exitDone || event.target !== exitTarget) return;
-        if (event.propertyName !== 'transform' && event.propertyName !== 'opacity') return;
-        exitDone = true;
-        exitTarget.removeEventListener('transitionend', onExitEnd);
-        exitTarget.classList.remove(exitClass);
-        runEnterPhase();
-      }
-
-      exitTarget.classList.add(exitClass);
-      exitTarget.addEventListener('transitionend', onExitEnd);
-      root._crslAnimTimer = setTimeout(function () {
-        if (!exitDone) {
-          exitDone = true;
-          exitTarget.removeEventListener('transitionend', onExitEnd);
-          exitTarget.classList.remove(exitClass);
-          runEnterPhase();
-        }
-      }, duration + 80);
+      if (watchEl) watchEl.addEventListener('transitionend', onEnd);
+      root._crslAnimTimer = setTimeout(complete, duration + 100);
     }
 
     function runLayout1Transition(direction) {
-      var track = root.querySelector('.crsl-track');
-      if (!track || !track.querySelector('.crsl-card')) {
-        renderFrame(0);
-        return;
-      }
-
-      if (singleCardMode) {
-        var oldCard = track.querySelector('.crsl-card');
-        runAnimatedSwap(
-          oldCard,
-          direction,
-          function () {
-            track.innerHTML = renderCard(items[currentCenterIndex], currentCenterIndex, centerSlot);
-            syncCenterPlayback(Array.prototype.slice.call(track.querySelectorAll('.crsl-card')));
-          },
-          function () {
-            return track.querySelector('.crsl-card');
-          }
-        );
-        return;
-      }
-
-      runAnimatedSwap(track, direction, function () {
-        track.innerHTML = buildTrackMarkup();
-        syncCenterPlayback(Array.prototype.slice.call(track.querySelectorAll('.crsl-card')));
-      });
+      runFluidHandoff(direction);
     }
 
     function bindLayout1Interactions() {
@@ -774,9 +861,9 @@
         if (isNaN(realIdx)) return;
 
         if (!singleCardMode && realIdx !== currentCenterIndex) {
-          var direction = signedShortestDelta(currentCenterIndex, realIdx, total);
+          var delta = signedShortestDelta(currentCenterIndex, realIdx, total);
           currentCenterIndex = realIdx;
-          renderFrame(direction >= 0 ? 1 : -1);
+          renderFrame(delta >= 0 ? 1 : -1);
           return;
         }
 
@@ -787,12 +874,14 @@
     function renderFrame(animateDirection) {
       clearTransitionTimer();
 
-      var track = root.querySelector('.crsl-track');
-      if (animateDirection && track && track.querySelector('.crsl-card')) {
+      if (animateDirection) {
+        clearHandoffStage();
+        setTransitioning(false);
         runLayout1Transition(animateDirection);
         return;
       }
 
+      clearHandoffStage();
       setTransitioning(false);
 
       root.innerHTML =
@@ -834,7 +923,6 @@
           '<video class="crsl-card__media" src="' + esc(item.url || '') +
           '" poster="' + esc(item.thumbnail || '') +
           '" loop muted playsinline preload="metadata" autoplay></video>' +
-          renderVideoWatermark(root) +
           '</span>'
         : '<span class="crsl-card__media-wrap">' +
           '<img class="crsl-card__media" loading="lazy" src="' +

@@ -63,9 +63,12 @@ model Video {
   status      VideoStatus @default(PROCESSING)
   type         MediaType
 
-  streamId     String? // Cloudflare Stream ID
-  originalUrl  String? // só se usar upload direto temporário
-  thumbnailUrl String?
+  streamId       String? // Legacy Cloudflare Stream ID
+  muxUploadId    String?
+  muxAssetId     String?
+  muxPlaybackId  String?
+  originalUrl    String? // Mux MP4 / Cloudinary image URL
+  thumbnailUrl   String?
 
   assets      VideoAsset[]
   productTags VideoProductTag[]

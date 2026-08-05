@@ -48,9 +48,12 @@
   data-limit="{{ block.settings.media_limit }}"
   class="carrousel-block"
   style="
+    display: block;
+    width: 100%;
     max-width: 100%;
-    min-width: 0;
+    min-width: min(100%, 18rem);
     overflow-x: clip;
+    box-sizing: border-box;
     --carrousel-bg: {{ block.settings.background_color }};
     --carrousel-card-bg: {{ block.settings.card_background }};
     --carrousel-text: {{ block.settings.text_color }};

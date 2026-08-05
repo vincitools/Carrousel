@@ -37,16 +37,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   });
 
   const media = videos.map((v) => {
-    const inferredType = v.type === "VIDEO" || isVideoUrl(v.originalUrl) ? "VIDEO" : "IMAGE";
+    const inferredType = v.type === "VIDEO" || isVideoUrl(v.originalUrl) || Boolean(v.muxPlaybackId)
+      ? "VIDEO"
+      : "IMAGE";
+
+    const thumbnail =
+      v.thumbnailUrl ||
+      (v.muxPlaybackId
+        ? `https://image.mux.com/${v.muxPlaybackId}/thumbnail.jpg?time=1`
+        : inferredType === "VIDEO"
+          ? buildListThumbnail(v.originalUrl)
+          : v.originalUrl);
 
     return {
       id: v.id,
       type: inferredType,
       title: resolveDisplayTitle(v.title),
       url: v.originalUrl,
+      status: v.status,
       taggedProductsCount: v._count?.productTags || 0,
-      thumbnail:
-        v.thumbnailUrl || (inferredType === "VIDEO" ? buildListThumbnail(v.originalUrl) : v.originalUrl),
+      thumbnail,
     };
   });
 

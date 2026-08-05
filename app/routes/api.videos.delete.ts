@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { requireShop } from "../utils/requireShop.server";
+import { deleteMuxAsset, getMuxConfigIssue } from "../services/mux.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method.toUpperCase() !== "POST") {
@@ -31,7 +32,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         shopId: shop.id,
         id: { in: validIds },
       },
-      select: { id: true },
+      select: { id: true, muxAssetId: true },
     });
 
     const ownedVideoIds = ownedVideos.map((video) => video.id);
@@ -39,8 +40,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({ success: true, deletedCount: 0 });
     }
 
-    // Some environments may not have every optional analytics table yet.
-    // Delete dependencies defensively so media deletion still succeeds.
+    if (!getMuxConfigIssue()) {
+      for (const video of ownedVideos) {
+        if (video.muxAssetId) {
+          await deleteMuxAsset(video.muxAssetId);
+        }
+      }
+    }
+
     const safeDeleteMany = async (label: string, run: () => Promise<unknown>) => {
       try {
         await run();

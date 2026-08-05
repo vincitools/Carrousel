@@ -33,7 +33,7 @@ export const action: ActionFunction = async ({ request }) => {
     if (!cloudinaryResult || typeof cloudinaryResult !== "string") {
       logFinalize(`[${requestId}] missing result field`);
       return Response.json(
-        { error: "Cloudinary result is required" },
+        { error: "Upload result is required (images use Cloudinary finalize)" },
         { status: 400 }
       );
     }

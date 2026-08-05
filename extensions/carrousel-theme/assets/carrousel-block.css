@@ -8,13 +8,24 @@
   --crsl-visible-slots: 5;
   background: var(--carrousel-bg, #f5ede8);
   box-sizing: border-box;
-  contain: layout inline-size;
+  display: block;
   margin-inline: auto;
   max-width: min(100%, var(--carrousel-max-width, 100%));
-  min-width: 0;
+  /* Avoid min-width:0 + contain:inline-size collapse in themes that size
+     the section/app-block wrapper to content (seen as a ~1-letter column). */
+  min-width: min(100%, 18rem);
   overflow-x: clip;
   overflow-y: visible;
   padding: var(--carrousel-pt, 28px) var(--carrousel-px, 24px) var(--carrousel-pb, 32px);
+  width: 100%;
+}
+
+/* Theme wrappers sometimes shrink-wrap app blocks — force full section width. */
+.shopify-block:has(> .carrousel-block),
+.shopify-app-block:has(> .carrousel-block) {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
   width: 100%;
 }
 
@@ -38,6 +49,7 @@
   min-width: 0;
   overflow: hidden;
   padding: 12px 12px 14px;
+  position: relative;
   scroll-behavior: smooth;
   scroll-snap-type: x mandatory;
   scroll-padding-inline: 0;
@@ -73,37 +85,81 @@
   width: 100%;
 }
 
-/* Layout 1 — slide/fade when user changes slides (multi-card desktop/tablet) */
+/* Layout 1 — fluid center handoff (outgoing slides out, incoming slides in) */
 .carrousel-block:not(.carrousel-block--single-card) .crsl-viewport:not(.crsl-viewport--layout2) {
   overflow: hidden;
 }
 
-.carrousel-block:not(.carrousel-block--single-card) .crsl-track {
-  transition: transform 0.36s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+.crsl-handoff-stage {
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  z-index: 8;
+}
+
+.crsl-handoff-card {
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+  max-width: none !important;
+  opacity: 1 !important;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute !important;
+  transform-origin: top left;
+  transition:
+    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform, opacity;
+  z-index: 2;
 }
 
-/* Layout 1 — shared swap animation (track or single card) */
-.crsl-swap--exit-left {
-  opacity: 0 !important;
-  pointer-events: none;
-  transform: translateX(-14%) scale(0.97) !important;
+/* Bypass live card scale states; JS drives transform during handoff. */
+.carrousel-block button.crsl-handoff-card.crsl-card:not(.crsl-card--layout2),
+.carrousel-block button.crsl-handoff-card.crsl-card--active:not(.crsl-card--layout2),
+.carrousel-block button.crsl-handoff-card.crsl-card:active:not(.crsl-card--layout2),
+.carrousel-block button.crsl-handoff-card.crsl-card--active:active:not(.crsl-card--layout2) {
+  box-shadow: none !important;
+  opacity: 1 !important;
+  /* transform intentionally not locked — set by JS */
 }
 
-.crsl-swap--exit-right {
-  opacity: 0 !important;
-  pointer-events: none;
-  transform: translateX(14%) scale(0.97) !important;
+/* Keep product chip proportional to the card (no counter-scale). */
+.crsl-handoff-card .crsl-card__meta {
+  min-width: 0 !important;
+  transform: none !important;
 }
 
-.crsl-swap--enter-right {
-  opacity: 0 !important;
-  transform: translateX(14%) scale(0.97) !important;
+.crsl-handoff-card .crsl-card__play {
+  transform: translate(-50%, -50%) !important;
 }
 
-.crsl-swap--enter-left {
+.crsl-handoff-card--out {
+  z-index: 2;
+}
+
+.crsl-handoff-card--in {
+  z-index: 4;
+}
+
+.crsl-handoff-card--edge {
+  z-index: 1;
+}
+
+.carrousel-block button.crsl-card.crsl-card--handoff-hidden,
+.carrousel-block button.crsl-card.crsl-card--active.crsl-card--handoff-hidden,
+.carrousel-block button.crsl-card.crsl-card--handoff-hidden:not(.crsl-card--layout2),
+.carrousel-block button.crsl-card.crsl-card--active.crsl-card--handoff-hidden:not(.crsl-card--layout2) {
   opacity: 0 !important;
-  transform: translateX(-14%) scale(0.97) !important;
+  pointer-events: none !important;
+  transition: none !important;
+  visibility: hidden !important;
+}
+
+.crsl-track.crsl-track--handoff-hidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }
 
 .carrousel-block--is-transitioning .crsl-controls__btn {
@@ -112,8 +168,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .carrousel-block:not(.carrousel-block--single-card) .crsl-track,
-  .carrousel-block--single-card button.crsl-card:not(.crsl-card--layout2) {
+  .crsl-handoff-card {
     transition: none;
     will-change: auto;
   }
@@ -251,30 +306,12 @@
     flex: 0 0 auto;
     opacity: 1 !important;
     transform: none !important;
-    transition: transform 0.36s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.36s cubic-bezier(0.22, 1, 0.36, 1);
     width: min(300px, 84vw);
-    will-change: transform, opacity;
   }
 
   .carrousel-block--single-card button.crsl-card.crsl-card--active:not(.crsl-card--layout2) {
     box-shadow: none;
     transform: none !important;
-  }
-
-  .carrousel-block--single-card .crsl-swap--exit-left {
-    transform: translateX(-22%) scale(0.96) !important;
-  }
-
-  .carrousel-block--single-card .crsl-swap--exit-right {
-    transform: translateX(22%) scale(0.96) !important;
-  }
-
-  .carrousel-block--single-card .crsl-swap--enter-right {
-    transform: translateX(22%) scale(0.96) !important;
-  }
-
-  .carrousel-block--single-card .crsl-swap--enter-left {
-    transform: translateX(-22%) scale(0.96) !important;
   }
 
   /* Fallback when container query units are unavailable */
@@ -332,30 +369,9 @@
   width: 100%;
 }
 
-/* Free plan — centered app name on videos */
+/* Free plan — centered app name on videos (retired; keep for legacy markup) */
 .crsl-watermark {
-  background: rgba(0, 0, 0, 0.32);
-  border-radius: 8px;
-  color: #fff;
-  font-size: clamp(0.62rem, 2.6vw, 0.9rem);
-  font-weight: 700;
-  left: 50%;
-  letter-spacing: 0.02em;
-  line-height: 1.25;
-  max-width: 90%;
-  padding: 6px 10px;
-  pointer-events: none;
-  position: absolute;
-  text-align: center;
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
-  top: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 4;
-}
-
-.crsl-lb__media-wrap .crsl-watermark {
-  font-size: clamp(0.8rem, 2.4vw, 1.05rem);
-  padding: 8px 12px;
+  display: none !important;
 }
 
 /* play overlay */
@@ -646,6 +662,7 @@
 .crsl-lb__top-actions {
   display: flex;
   gap: 8px;
+  margin-left: auto;
 }
 
 /* icon buttons */

@@ -2,7 +2,14 @@ import { v2 as cloudinary } from "cloudinary";
 import { Readable } from "node:stream";
 import type { ActionFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { buildMediaRecordData } from "../services/media.server";
+import { buildMediaRecordData, titleFromFileName } from "../services/media.server";
+import {
+  buildMuxPlaybackUrl,
+  buildMuxThumbnailUrl,
+  createMuxAssetFromUrl,
+  extractPlaybackId,
+  getMuxConfigIssue,
+} from "../services/mux.server";
 import { requireShop } from "../utils/requireShop.server";
 
 cloudinary.config({
@@ -421,6 +428,81 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     const resolved = await resolveSupportedMediaUrl(parsedUrl);
+    const resourceType = inferResourceType(resolved.mediaUrl);
+
+    if (resourceType === "video") {
+      const muxIssue = getMuxConfigIssue();
+      if (muxIssue) {
+        return Response.json({ error: muxIssue }, { status: 500 });
+      }
+
+      const pending = await prisma.video.create({
+        data: {
+          shopId: shop.id,
+          title: titleFromFileName(resolved.titleHint || "Imported video"),
+          status: "PROCESSING",
+          type: "VIDEO",
+        },
+      });
+
+      try {
+        const asset = await createMuxAssetFromUrl(resolved.mediaUrl, pending.id);
+        const playbackId = extractPlaybackId(asset);
+        const assetId = asset.id;
+
+        if (asset.status === "ready" && playbackId) {
+          const ready = await prisma.video.update({
+            where: { id: pending.id },
+            data: {
+              muxAssetId: assetId,
+              muxPlaybackId: playbackId,
+              originalUrl: buildMuxPlaybackUrl(playbackId),
+              thumbnailUrl: buildMuxThumbnailUrl(playbackId),
+              duration: Math.round(Number(asset.duration) || 0) || undefined,
+              status: "READY",
+            },
+          });
+
+          return Response.json({
+            success: true,
+            video: {
+              id: ready.id,
+              url: ready.originalUrl,
+              thumbnail: ready.thumbnailUrl,
+              duration: ready.duration,
+              type: ready.type,
+            },
+          });
+        }
+
+        await prisma.video.update({
+          where: { id: pending.id },
+          data: {
+            muxAssetId: assetId,
+            muxPlaybackId: playbackId || undefined,
+            status: "PROCESSING",
+          },
+        });
+
+        return Response.json({
+          success: true,
+          processing: true,
+          video: {
+            id: pending.id,
+            url: null,
+            thumbnail: playbackId ? buildMuxThumbnailUrl(playbackId) : null,
+            duration: null,
+            type: "VIDEO",
+          },
+        });
+      } catch (muxError) {
+        await prisma.video.update({
+          where: { id: pending.id },
+          data: { status: "FAILED" },
+        });
+        throw muxError;
+      }
+    }
 
     const result = await uploadToCloudinaryFromResolvedUrl(resolved.mediaUrl);
 
@@ -447,7 +529,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             ? `Could not import the URL. ${error.message}`
             : "Could not import the URL. Make sure the post is public and the link is valid.",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 };

@@ -47,28 +47,6 @@ const resolvedApiSecret = getFirstEnv(
   "SHOPIFY_CLIENT_SECRET",
 );
 
-/** Must stay in sync with shopify.app.toml — always merged so Render SCOPES env cannot omit metaobjects. */
-const REQUIRED_SCOPES = [
-  "read_products",
-  "write_products",
-  "read_orders",
-  "read_themes",
-  "write_app_proxy",
-  "read_metaobjects",
-  "write_metaobjects",
-  "read_metaobject_definitions",
-  "write_metaobject_definitions",
-];
-
-function resolveAppScopes() {
-  const fromEnv = getFirstEnv("SCOPES")
-    ?.split(",")
-    .map((scope) => scope.trim())
-    .filter(Boolean);
-  if (!fromEnv?.length) return REQUIRED_SCOPES;
-  return Array.from(new Set([...fromEnv, ...REQUIRED_SCOPES]));
-}
-
 if (!resolvedApiKey) {
   console.error(
     "[shopify] Missing API key env. Checked: SHOPIFY_API_KEY, API_KEY, SHOPIFY_CLIENT_ID, SHOPIFY_API_CLIENT_ID",
@@ -79,7 +57,7 @@ const shopify = shopifyApp({
   apiKey: resolvedApiKey,
   apiSecretKey: resolvedApiSecret || "",
   apiVersion: resolvedApiVersion,
-  scopes: resolveAppScopes(),
+  scopes: getFirstEnv("SCOPES")?.split(","),
   appUrl: resolveAppUrl(),
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),

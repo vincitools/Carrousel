@@ -161,13 +161,21 @@ function mapVideoItem(video: {
   type: "VIDEO" | "IMAGE";
   originalUrl: string | null;
   thumbnailUrl: string | null;
+  muxPlaybackId?: string | null;
 }): StorefrontItem {
+  const muxUrl = video.muxPlaybackId
+    ? `https://stream.mux.com/${video.muxPlaybackId}/highest.mp4`
+    : null;
+  const muxThumb = video.muxPlaybackId
+    ? `https://image.mux.com/${video.muxPlaybackId}/thumbnail.jpg?time=1`
+    : null;
+
   return {
     id: video.id,
     title: resolveDisplayTitle(video.title),
     type: video.type,
-    url: video.originalUrl,
-    thumbnail: video.thumbnailUrl || video.originalUrl,
+    url: muxUrl || video.originalUrl,
+    thumbnail: video.thumbnailUrl || muxThumb || video.originalUrl,
     productIds: [],
   };
 }
@@ -180,6 +188,7 @@ async function getDefaultPlaylistVideos(shopId: string, limit: number) {
       videos: {
         orderBy: { position: "asc" },
         take: limit,
+        where: { video: { status: "READY" } },
         include: {
           video: {
             select: {
@@ -188,6 +197,7 @@ async function getDefaultPlaylistVideos(shopId: string, limit: number) {
               type: true,
               originalUrl: true,
               thumbnailUrl: true,
+              muxPlaybackId: true,
             },
           },
         },
@@ -215,6 +225,7 @@ async function getNamedPlaylistVideos(shopId: string, playlistName: string, limi
       videos: {
         orderBy: { position: "asc" },
         take: limit,
+        where: { video: { status: "READY" } },
         include: {
           video: {
             select: {
@@ -223,6 +234,7 @@ async function getNamedPlaylistVideos(shopId: string, playlistName: string, limi
               type: true,
               originalUrl: true,
               thumbnailUrl: true,
+              muxPlaybackId: true,
             },
           },
         },
@@ -240,6 +252,7 @@ async function getPlaylistVideosById(shopId: string, playlistId: string, limit: 
       videos: {
         orderBy: { position: "asc" },
         take: limit,
+        where: { video: { status: "READY" } },
         include: {
           video: {
             select: {
@@ -248,6 +261,7 @@ async function getPlaylistVideosById(shopId: string, playlistId: string, limit: 
               type: true,
               originalUrl: true,
               thumbnailUrl: true,
+              muxPlaybackId: true,
             },
           },
         },
@@ -260,7 +274,7 @@ async function getPlaylistVideosById(shopId: string, playlistId: string, limit: 
 
 async function getProductTaggedVideos(shopId: string, productId: string, limit: number) {
   const tagged = await prisma.videoProductTag.findMany({
-    where: { shopifyProductId: productId, video: { shopId } },
+    where: { shopifyProductId: productId, video: { shopId, status: "READY" } },
     take: limit,
     orderBy: { createdAt: "desc" },
     include: {
@@ -271,12 +285,13 @@ async function getProductTaggedVideos(shopId: string, productId: string, limit: 
           type: true,
           originalUrl: true,
           thumbnailUrl: true,
+          muxPlaybackId: true,
         },
       },
     },
   });
 
-  return tagged.map((entry) => mapVideoItem(entry.video));
+  return tagged.map((entry) => mapVideoItem(entry.video)).filter((item) => Boolean(item.url && String(item.url).trim()));
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {

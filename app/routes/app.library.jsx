@@ -181,58 +181,113 @@ export default function ContentLibrary() {
     setUploading(true);
 
     const mediaType = selectedFile.type.startsWith("image/") ? "image" : "video";
-    const signedUploadEndpoint = withShopParam(`/api/videos/upload?t=${Date.now()}&mediaType=${mediaType}`);
+    const titleParam = encodeURIComponent(selectedFile.name || "");
+    const signedUploadEndpoint = withShopParam(
+      `/api/videos/upload?t=${Date.now()}&mediaType=${mediaType}&title=${titleParam}`,
+    );
     const finalizeEndpoint = withShopParam("/api/videos/finalize");
     const pingEndpoint = withShopParam("/api/ping");
-    
+
     console.log("[library] upload start", {
       signedUploadEndpoint,
       finalizeEndpoint,
       mediaType,
       origin: window.location.origin,
-      search: window.location.search,
       name: selectedFile.name,
       size: selectedFile.size,
       type: selectedFile.type,
     });
 
     try {
-      // Ping is only diagnostic; do not block uploads on this check.
-      console.log("[library] testing ping endpoint", pingEndpoint);
       try {
         const pingRes = await xhrRequest({
           url: pingEndpoint,
           method: "GET",
           timeoutMs: 5000,
         });
-
-        console.log("[library] ping status", pingRes.status, pingRes.payload);
         if (!pingRes.ok) {
-          console.warn("[library] ping returned non-ok; continuing upload flow", pingRes.status, pingRes.payload);
+          console.warn("[library] ping non-ok; continuing", pingRes.status);
         }
       } catch (pingErr) {
-        console.error("[library] ping failed:", pingErr);
-        console.warn("[library] ping failed, continuing upload flow");
+        console.warn("[library] ping failed, continuing", pingErr);
       }
 
-      console.log("[library] requesting signed upload params from", signedUploadEndpoint);
       const { payload: signPayload } = await requestJsonWithFallback({
         label: "signed params",
         urls: [signedUploadEndpoint],
         method: "GET",
-        timeoutMs: 12000,
+        timeoutMs: 20000,
       });
 
-      if (!signPayload?.uploadURL || !signPayload?.uploadParams) {
+      if (!signPayload?.uploadURL) {
         console.error("[library] signed params error payload", signPayload);
         setUploadError(signPayload?.error || "Failed to get upload parameters.");
         return;
       }
 
-      console.log("[library] uploading directly to Cloudinary");
+      // ── Videos → Mux Direct Upload (PUT file to Mux URL) ──
+      if (mediaType === "video" || signPayload.provider === "mux") {
+        console.log("[library] uploading directly to Mux", signPayload.videoId);
+        const muxController = new AbortController();
+        const muxTimeout = setTimeout(() => muxController.abort(), 300000);
+        const muxResponse = await fetch(signPayload.uploadURL, {
+          method: "PUT",
+          body: selectedFile,
+          headers: {
+            "Content-Type": selectedFile.type || "application/octet-stream",
+          },
+          signal: muxController.signal,
+        });
+        clearTimeout(muxTimeout);
+
+        if (!muxResponse.ok) {
+          const errText = await muxResponse.text().catch(() => "");
+          console.error("[library] mux upload failed", muxResponse.status, errText);
+          setUploadError("Mux upload failed. Please try again.");
+          return;
+        }
+
+        // Poll until READY (webhook may also update; polling keeps UX snappy)
+        const statusUrl = withShopParam(`/api/videos/mux-status?id=${encodeURIComponent(signPayload.videoId)}`);
+        let ready = false;
+        for (let attempt = 0; attempt < 45; attempt += 1) {
+          await new Promise((r) => setTimeout(r, 2000));
+          try {
+            const statusRes = await xhrRequest({
+              url: statusUrl,
+              method: "GET",
+              timeoutMs: 12000,
+            });
+            const status = statusRes.payload?.status;
+            console.log("[library] mux status poll", attempt, status);
+            if (status === "READY") {
+              ready = true;
+              break;
+            }
+            if (status === "FAILED") {
+              setUploadError("Video processing failed on Mux. Try another file.");
+              return;
+            }
+          } catch (pollErr) {
+            console.warn("[library] mux status poll error", pollErr);
+          }
+        }
+
+        if (!ready) {
+          // Upload succeeded; processing may finish via webhook shortly.
+          console.warn("[library] mux still processing after poll window");
+        }
+
+        await loadMedia();
+        resetUploadModal();
+        return;
+      }
+
+      // ── Images → Cloudinary (signed POST) ──
+      console.log("[library] uploading image to Cloudinary");
       const cloudinaryFormData = new FormData();
       cloudinaryFormData.append("file", selectedFile);
-      Object.entries(signPayload.uploadParams).forEach(([key, value]) => {
+      Object.entries(signPayload.uploadParams || {}).forEach(([key, value]) => {
         cloudinaryFormData.append(key, String(value));
       });
 
@@ -244,7 +299,6 @@ export default function ContentLibrary() {
         signal: cloudinaryController.signal,
       });
       clearTimeout(cloudinaryTimeout);
-      console.log("[library] cloudinary status", cloudinaryResponse.status);
 
       let cloudinaryPayload = null;
       try {
@@ -258,12 +312,11 @@ export default function ContentLibrary() {
         setUploadError(
           cloudinaryPayload?.error?.message ||
             cloudinaryPayload?.message ||
-            "Cloudinary upload failed."
+            "Image upload failed.",
         );
         return;
       }
 
-      console.log("[library] finalizing media in backend");
       const { payload: finalizePayload } = await requestJsonWithFallback({
         label: "finalize",
         urls: [finalizeEndpoint],
@@ -286,7 +339,7 @@ export default function ContentLibrary() {
     } catch (error) {
       console.error("[library] upload fetch error", error);
       if (error?.name === "AbortError") {
-        setUploadError("Upload timeout: the server took longer than 90 seconds to respond.");
+        setUploadError("Upload timeout: the upload took too long. Please try again.");
       } else {
         setUploadError("Network error while uploading.");
       }
@@ -654,7 +707,9 @@ function MediaTable({ media, selectedIds, onToggleSelect, onTagProducts }) {
           </div>
           <span style={{ color: "#374151", fontSize: "14px" }}>{item.type === "VIDEO" ? "Video" : "Image"}</span>
           <div style={{ alignItems: "center", display: "flex", gap: "8px", justifyContent: "space-between" }}>
-            <span style={{ color: "#0f766e", fontSize: "14px", fontWeight: 600 }}>Ready</span>
+          <span style={{ color: "#0f766e", fontSize: "14px", fontWeight: 600 }}>
+            {item.status === "PROCESSING" ? "Processing…" : item.status === "FAILED" ? "Failed" : "Ready"}
+          </span>
             {item.taggedProductsCount > 0 ? (
               <button type="button" onClick={() => onTagProducts(item)} style={{ alignItems: "center", background: "#ffffff", border: "1px solid #d1d5db", borderRadius: "999px", color: "#111827", cursor: "pointer", display: "inline-flex", fontSize: "12px", fontWeight: 600, gap: "6px", padding: "6px 10px" }}>
                 <span style={{ background: "#111827", borderRadius: "999px", display: "inline-block", height: "6px", width: "6px" }} />

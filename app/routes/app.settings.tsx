@@ -203,7 +203,7 @@ export default function SettingsPage() {
                   <Text as="p">Unlimited video upload</Text>
                   <Text as="p">Create up to 1 playlist</Text>
                   <Text as="p">Up to 5 videos per playlist</Text>
-                  <Text as="p">Vinci Shoppable Videos watermark</Text>
+                  <Text as="p">Powered by Vinci branding</Text>
                   <Text as="p">No analytics</Text>
                 </BlockStack>
                 <Button
